@@ -107,7 +107,7 @@ function getAvatarBg(guideId: string): string {
   const hash = guideId
     .split("")
     .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
-  return AVATAR_BG_PALETTE[hash % AVATAR_BG_PALETTE.length];
+  return AVATAR_BG_PALETTE[hash % AVATAR_BG_PALETTE.length] ?? "#7a4c38";
 }
 
 function guideInitials(name: string): string {
@@ -115,7 +115,7 @@ function guideInitials(name: string): string {
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
+    .map((w) => (w[0] ?? "").toUpperCase())
     .join("");
 }
 
