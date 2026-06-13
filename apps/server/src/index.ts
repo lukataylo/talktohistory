@@ -18,6 +18,14 @@ import {
   type TtsRequest,
 } from "@tth/shared";
 
+// Local dev convenience: load root .env.local if present (Railway injects real
+// env vars in production, where this file won't exist and the call no-ops).
+try {
+  (process as { loadEnvFile?: (p: string) => void }).loadEnvFile?.("../../.env.local");
+} catch {
+  /* no .env.local — rely on the platform's injected env */
+}
+
 const env = process.env;
 const ai = createProviders(env);
 const db = createStorage(env);

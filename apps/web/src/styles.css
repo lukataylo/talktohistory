@@ -103,7 +103,17 @@ button {
 .plan-map {
   z-index: 1;
   opacity: 1;
+  transform-origin: center;
   transition: opacity 220ms ease;
+}
+
+.has-plan-map {
+  touch-action: none;
+  cursor: grab;
+}
+
+.has-plan-map:active {
+  cursor: grabbing;
 }
 
 .has-mapbox .plan-map {
@@ -304,6 +314,7 @@ h2 {
 .spot-dock,
 .memory-dock,
 .pin-list,
+.map-controls,
 .floating-tapbar {
   position: absolute;
   z-index: 20;
@@ -425,6 +436,8 @@ h2 {
   right: clamp(12px, 2.4vw, 24px);
   display: grid;
   width: min(300px, 32vw);
+  max-height: min(300px, calc(100% - 232px));
+  overflow: auto;
   gap: 8px;
   padding: 10px;
   border-radius: 20px;
@@ -469,6 +482,40 @@ h2 {
 .pin-dot.active {
   background: #191816;
   box-shadow: 0 0 0 5px rgba(25, 24, 22, 0.12);
+}
+
+.map-controls {
+  top: 112px;
+  left: clamp(12px, 2.4vw, 24px);
+  display: grid;
+  grid-template-columns: repeat(3, 38px);
+  gap: 6px;
+  padding: 8px;
+  border-radius: 20px;
+}
+
+.map-controls button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #38332e;
+  background: rgba(255, 255, 255, 0.76);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
+}
+
+.map-controls button:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.map-controls .map-reset {
+  grid-column: 2;
 }
 
 .floating-tapbar {
@@ -529,14 +576,14 @@ h2 {
   line-height: 17px;
 }
 
-.ghost-pin,
+.place-pin,
 .user-dot {
   position: absolute;
   z-index: 32;
   transform: translate(-50%, -50%);
 }
 
-.ghost-pin {
+.place-pin {
   display: grid;
   width: 66px;
   height: 66px;
@@ -546,6 +593,7 @@ h2 {
   background: transparent;
   cursor: pointer;
   filter: drop-shadow(0 12px 18px rgba(38, 34, 29, 0.24));
+  touch-action: manipulation;
   transition:
     transform 180ms ease,
     color 180ms ease;
@@ -565,10 +613,14 @@ h2 {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.95),
     0 10px 20px rgba(25, 24, 22, 0.18);
-  font-size: 1.45rem;
-  font-weight: 900;
-  line-height: 1;
+  color: #24211f;
   animation: bob 2.8s ease-in-out infinite;
+}
+
+.place-pin.is-selected .place-pin-glyph {
+  background:
+    radial-gradient(circle at 30% 22%, #ffffff, rgba(255, 255, 255, 0.78) 42%, rgba(234, 244, 241, 0.94)),
+    linear-gradient(145deg, #ffffff, #dfece8);
 }
 
 .pin-halo {
@@ -581,14 +633,14 @@ h2 {
     0 18px 34px rgba(25, 24, 22, 0.2);
 }
 
-.ghost-pin.is-active .pin-halo {
+.place-pin.is-active .pin-halo {
   background: #ffffff;
   box-shadow:
     0 0 0 8px rgba(47, 111, 131, 0.14),
     0 0 32px rgba(242, 199, 97, 0.58);
 }
 
-.ghost-pin.is-selected {
+.place-pin.is-selected {
   transform: translate(-50%, -50%) scale(1.12);
 }
 
@@ -771,6 +823,7 @@ h2 {
     bottom: 320px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     width: auto;
+    max-height: 120px;
   }
 
   .memory-dock {
@@ -793,7 +846,7 @@ h2 {
 
   .map-stage {
     height: 100dvh;
-    min-height: 760px;
+    min-height: 100dvh;
     border: 0;
     border-radius: 0;
   }
@@ -808,18 +861,60 @@ h2 {
   }
 
   .pin-list {
+    top: 82px;
+    right: 12px;
+    left: 12px;
+    bottom: auto;
+    display: flex;
+    width: auto;
+    max-height: none;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 8px;
+    scrollbar-width: none;
+  }
+
+  .pin-list::-webkit-scrollbar {
     display: none;
+  }
+
+  .pin-list button {
+    grid-template-columns: 10px minmax(104px, 1fr) auto;
+    flex: 0 0 min(76vw, 260px);
+    min-height: 42px;
+    padding: 0 10px;
+    background: rgba(255, 255, 255, 0.45);
+  }
+
+  .map-controls {
+    top: 148px;
+    left: 12px;
+    grid-template-columns: repeat(7, 38px);
+    max-width: calc(100% - 24px);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .map-controls::-webkit-scrollbar {
+    display: none;
+  }
+
+  .map-controls .map-reset {
+    grid-column: auto;
   }
 
   .spot-dock {
     right: 12px;
-    bottom: 228px;
+    bottom: 198px;
+    max-height: 38dvh;
+    overflow: auto;
+    padding: 13px;
   }
 
   .memory-dock {
     left: 12px;
     right: 12px;
-    bottom: 90px;
+    bottom: 82px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 148px;
     gap: 12px;
@@ -827,7 +922,7 @@ h2 {
   }
 
   .floating-tapbar {
-    bottom: 12px;
+    bottom: max(10px, env(safe-area-inset-bottom));
     min-height: 62px;
     padding: 7px;
   }
@@ -863,12 +958,14 @@ h2 {
   }
 
   .story-scrim {
-    padding: 12px;
+    align-items: end;
+    padding: 10px 10px max(10px, env(safe-area-inset-bottom));
   }
 
   .story-sheet {
     grid-template-columns: 1fr;
     gap: 14px;
+    max-height: calc(100dvh - 20px - env(safe-area-inset-bottom));
     padding: 16px;
   }
 

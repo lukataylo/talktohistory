@@ -6,12 +6,15 @@ import {
   ChevronRight as ChevronRightRaw,
   ChevronUp as ChevronUpRaw,
   Coffee as CoffeeRaw,
+  FlaskConical as FlaskConicalRaw,
   Footprints as FootprintsRaw,
+  Landmark as LandmarkRaw,
   LocateFixed as LocateFixedRaw,
   MapPin as MapPinRaw,
   Minus as MinusRaw,
   Music as MusicRaw,
   Navigation as NavigationRaw,
+  Palette as PaletteRaw,
   Plus as PlusRaw,
   RotateCcw as RotateCcwRaw,
   Sparkles as SparklesRaw,
@@ -20,8 +23,9 @@ import {
 import type { ComponentType, PointerEvent as ReactPointerEvent, SVGProps } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  CHARACTER_SPOTS,
   ProximityEngine,
-  SEED_SPOTS,
+  getCharacter,
   haversineMeters,
   type Challenge,
   type Fix,
@@ -39,6 +43,8 @@ import {
   type PlanMapView,
   type ScreenPoint,
 } from "./map/mapAdapter";
+import { fetchNarrationUrl, fetchStory } from "./api";
+import { makeStickerFromPhoto } from "./sticker";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number; strokeWidth?: number }>;
 
@@ -49,12 +55,15 @@ const ChevronLeft = ChevronLeftRaw as unknown as IconComponent;
 const ChevronRight = ChevronRightRaw as unknown as IconComponent;
 const ChevronUp = ChevronUpRaw as unknown as IconComponent;
 const Coffee = CoffeeRaw as unknown as IconComponent;
+const FlaskConical = FlaskConicalRaw as unknown as IconComponent;
 const Footprints = FootprintsRaw as unknown as IconComponent;
+const Landmark = LandmarkRaw as unknown as IconComponent;
 const LocateFixed = LocateFixedRaw as unknown as IconComponent;
 const MapPin = MapPinRaw as unknown as IconComponent;
 const Minus = MinusRaw as unknown as IconComponent;
 const Music = MusicRaw as unknown as IconComponent;
 const Navigation = NavigationRaw as unknown as IconComponent;
+const Palette = PaletteRaw as unknown as IconComponent;
 const Plus = PlusRaw as unknown as IconComponent;
 const RotateCcw = RotateCcwRaw as unknown as IconComponent;
 const Sparkles = SparklesRaw as unknown as IconComponent;
@@ -103,7 +112,7 @@ const SPOT_COPY: Record<string, { mood: string; clue: string }> = {
 };
 
 export function App() {
-  const spots = SEED_SPOTS;
+  const spots = CHARACTER_SPOTS;
   const [size, setSize] = useState({ width: 900, height: 720 });
   const [position, setPosition] = useState<LatLng>(DEMO_START);
   const [activeIds, setActiveIds] = useState<Set<string>>(new Set());
@@ -122,6 +131,7 @@ export function App() {
   const mapboxContainerRef = useRef<HTMLDivElement | null>(null);
   const mapboxRendererRef = useRef<MapRenderer | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const lastWalkPoint = useRef<LatLng | null>(null);
   const planDragRef = useRef<PlanDrag | null>(null);
 
@@ -314,26 +324,69 @@ export function App() {
     );
   }
 
-  function beginStory(spot: GhostSpot) {
+  async function beginStory(spot: GhostSpot) {
     if (!activeIds.has(spot.id)) {
       unlockSpotNow(spot);
     }
 
-    const story = createDemoStory(spot);
-    setCurrentStory(story);
+    // Show a character-voiced fallback instantly, then upgrade with Gemini.
+    const fallback = createCharacterStory(spot);
+    setCurrentStory(fallback);
     setStoryMode("story");
     setWalkMeters(0);
     setCapturedPhotoUrl(null);
     lastWalkPoint.current = null;
     stopNarration();
+
+    const character = getCharacter(spot.id);
+    const remote = await fetchStory({
+      spotId: spot.id,
+      lat: spot.lat,
+      lng: spot.lng,
+      timeOfDay: getTimeOfDay(),
+      placeName: spot.title,
+      seed: character?.persona,
+    });
+    if (remote) {
+      setCurrentStory((cur) =>
+        cur && cur.spotId === spot.id
+          ? { spotId: spot.id, title: remote.title, narration: remote.narration, challenge: remote.challenge }
+          : cur
+      );
+    }
   }
 
-  function narrate() {
-    if (!currentStory || !("speechSynthesis" in window)) return;
+  async function narrate() {
+    const story = currentStory;
+    if (!story) return;
     stopNarration();
-    const utterance = new SpeechSynthesisUtterance(currentStory.narration);
-    utterance.rate = 0.9;
-    utterance.pitch = 0.78;
+    setIsListening(true);
+    // Prefer the real ElevenLabs voice from the backend; fall back to browser TTS.
+    const url = await fetchNarrationUrl({ text: story.narration, spotId: story.spotId });
+    if (url) {
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.onended = () => setIsListening(false);
+      audio.onerror = () => speakBrowser(story);
+      try {
+        await audio.play();
+        return;
+      } catch {
+        // Autoplay blocked or playback failed — fall back to browser speech.
+      }
+    }
+    speakBrowser(story);
+  }
+
+  function speakBrowser(story: Story) {
+    if (!("speechSynthesis" in window)) {
+      setIsListening(false);
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(story.narration);
+    utterance.rate = 0.95;
+    utterance.pitch = 0.9;
     utterance.onend = () => setIsListening(false);
     utterance.onerror = () => setIsListening(false);
     speechRef.current = utterance;
@@ -346,6 +399,10 @@ export function App() {
       window.speechSynthesis.cancel();
     }
     speechRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
     setIsListening(false);
   }
 
@@ -364,16 +421,25 @@ export function App() {
     setWalkMeters((meters) => meters + gained);
   }
 
-  function saveMemory(kind: "selfie" | "walk") {
+  async function saveMemory(kind: "selfie" | "walk") {
     if (!selectedSpot) return;
-    const photoUrl = kind === "selfie" && capturedPhotoUrl ? capturedPhotoUrl : createStickerDataUrl(selectedSpot, kind, false);
+    const character = getCharacter(selectedSpot.id);
+    let photoUrl: string;
+    let stickerUrl: string;
+    if (kind === "selfie" && capturedPhotoUrl) {
+      photoUrl = capturedPhotoUrl;
+      stickerUrl = await makeStickerFromPhoto(capturedPhotoUrl, character?.name ?? selectedSpot.title);
+    } else {
+      photoUrl = createStickerDataUrl(selectedSpot, kind, false);
+      stickerUrl = createStickerDataUrl(selectedSpot, kind, true);
+    }
     const memory: Memory = {
       id: crypto.randomUUID(),
       day: todayKey(),
       spotId: selectedSpot.id,
       photoUrl,
-      stickerUrl: createStickerDataUrl(selectedSpot, kind, true),
-      caption: kind === "selfie" ? "Favorite detail captured" : "Trail mark collected",
+      stickerUrl,
+      caption: character ? `Met ${character.name}` : "Memory captured",
       lat: position.lat,
       lng: position.lng,
       createdAt: Date.now(),
@@ -529,7 +595,7 @@ export function App() {
 
         <header className="topbar glass-panel">
           <div>
-            <p className="eyebrow">Find their favorite spots</p>
+            <p className="eyebrow">Talk to who was here</p>
             <h1>NearPast</h1>
           </div>
           <div className="status-cluster">
@@ -553,13 +619,13 @@ export function App() {
               <h2>{selectedSpot ? displaySpotTitle(selectedSpot) : ""}</h2>
             </div>
           </div>
-          <p className="spot-mood">{selectedSpot ? SPOT_COPY[selectedSpot.id]?.mood : ""}</p>
+          <p className="spot-mood">{selectedSpot ? getCharacter(selectedSpot.id)?.blurb ?? "" : ""}</p>
           <div className="unlock-meter">
             <span style={{ width: `${getUnlockPercent(selectedDistance, selectedSpot)}%` }} />
           </div>
           <div className="dock-meta">
             <span>{Math.round(selectedDistance)}m away</span>
-            <span>{selectedUnlocked ? "Unlocked" : selectedSpot ? SPOT_COPY[selectedSpot.id]?.clue : ""}</span>
+            <span>{selectedUnlocked ? "Unlocked" : selectedSpot ? getCharacter(selectedSpot.id)?.era ?? "Walk up to unlock" : ""}</span>
           </div>
           <div className="dock-actions">
             <button className="primary-button" type="button" onClick={() => selectedSpot && beginStory(selectedSpot)}>
@@ -789,25 +855,20 @@ function MapBackdrop() {
   );
 }
 
-function createDemoStory(spot: GhostSpot): Story {
+function createCharacterStory(spot: GhostSpot): Story {
+  const character = getCharacter(spot.id);
   const timeOfDay = getTimeOfDay();
-  const title = displaySpotTitle(spot);
-  const challenge: Challenge =
-    spot.id === "south-bank-steps" || spot.id === "soho-listening-bar"
-      ? {
-          type: "walk",
-          instruction: "Walk the block and notice what changes: sound, light, signage, faces. Save the route when the place starts to feel familiar.",
-          targetMeters: 45,
-        }
-      : {
-          type: "selfie",
-          instruction: "Take a photo of the detail that would make someone save this spot: a cup, shelf, sign, corner, or view.",
-        };
-
+  const challenge: Challenge = character?.challenge ?? {
+    type: "selfie",
+    instruction: "Take a photo to remember standing on this exact spot.",
+  };
+  const narration = character
+    ? `${character.persona}`
+    : `You stand where history happened, in the ${timeOfDay} light, and the place begins to speak.`;
   return {
     spotId: spot.id,
-    title,
-    narration: `${SPOT_COPY[spot.id]?.mood ?? "This place has the feel of a regular's shortcut."} You step into ${title} in the ${timeOfDay}, and NearPast starts reading the small signals: the view people photograph, the seat they choose twice, the route they take without thinking. Save one detail and the map turns it into a memory sticker for today.`,
+    title: character?.name ?? displaySpotTitle(spot),
+    narration,
     challenge,
   };
 }
@@ -873,11 +934,28 @@ function planViewStyle(view: PlanMapView) {
 
 function PinIcon({ spot }: { spot: GhostSpot }) {
   const iconProps = { size: 22, strokeWidth: 2.25 };
-  if (spot.icon === "coffee") return <Coffee {...iconProps} />;
-  if (spot.icon === "books") return <BookOpen {...iconProps} />;
-  if (spot.icon === "music") return <Music {...iconProps} />;
-  if (spot.icon === "walk") return <Footprints {...iconProps} />;
-  return <MapPin {...iconProps} />;
+  switch (spot.icon) {
+    case "science":
+      return <FlaskConical {...iconProps} />;
+    case "music":
+      return <Music {...iconProps} />;
+    case "politics":
+    case "history":
+      return <Landmark {...iconProps} />;
+    case "arts":
+      return <Palette {...iconProps} />;
+    case "literature":
+      return <BookOpen {...iconProps} />;
+    // legacy favorite-spot categories (kept for safety)
+    case "coffee":
+      return <Coffee {...iconProps} />;
+    case "books":
+      return <BookOpen {...iconProps} />;
+    case "walk":
+      return <Footprints {...iconProps} />;
+    default:
+      return <MapPin {...iconProps} />;
+  }
 }
 
 function clampPlanOffset(value: number) {

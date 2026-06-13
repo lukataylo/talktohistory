@@ -1,61 +1,243 @@
-/* Landing + Login screens. Owned by the shell; a sub-agent may polish these. */
+/* Landing + Login screens. Owned by the shell; this sub-agent polishes these. */
 .screen {
   position: fixed;
   inset: 0;
   display: grid;
   place-items: center;
   padding: 24px;
+  overflow: hidden;
   background:
-    radial-gradient(circle at 22% 18%, rgba(124, 108, 255, 0.18), transparent 42%),
-    radial-gradient(circle at 82% 84%, rgba(170, 60, 84, 0.14), transparent 46%),
+    radial-gradient(circle at 22% 18%, rgba(124, 108, 255, 0.22), transparent 44%),
+    radial-gradient(circle at 82% 84%, rgba(175, 56, 80, 0.16), transparent 48%),
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.5), transparent 60%),
     #ece8dc;
 }
 
+/* ---- Faux-map backdrop (Landing) ------------------------------------- */
+.landing-map {
+  position: absolute;
+  inset: -6%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.landing-map-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.9;
+}
+
+.lm-river {
+  fill: none;
+  stroke: url(#np-river);
+  stroke-width: 30;
+  stroke-linecap: round;
+  opacity: 0.55;
+  filter: blur(0.4px);
+}
+
+.lm-route {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 1 22;
+  opacity: 0.8;
+}
+
+.lm-route-faint {
+  stroke: rgba(40, 37, 34, 0.16);
+  stroke-dasharray: none;
+  stroke-width: 7;
+  opacity: 0.7;
+}
+
+.lm-pin {
+  position: absolute;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 999px;
+  color: #7c6cff;
+  background:
+    radial-gradient(circle at 30% 24%, #ffffff, rgba(255, 255, 255, 0.7) 46%, rgba(236, 232, 220, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 12px 26px rgba(25, 24, 22, 0.2);
+  animation: lm-bob 3.4s ease-in-out infinite;
+}
+
+.lm-pin-a {
+  top: 16%;
+  left: 14%;
+  animation-delay: -0.2s;
+}
+
+.lm-pin-b {
+  top: 30%;
+  right: 16%;
+  color: #af3850;
+  animation-delay: -1.4s;
+}
+
+.lm-pin-c {
+  bottom: 18%;
+  left: 22%;
+  animation-delay: -2.5s;
+}
+
+@keyframes lm-bob {
+  0%,
+  100% {
+    transform: translateY(-4px);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+/* ---- Shared card ------------------------------------------------------ */
 .screen-card {
   position: relative;
+  z-index: 1;
   width: min(440px, 100%);
   padding: 32px 28px;
-  border-radius: 24px;
+  border-radius: 28px;
   display: flex;
   flex-direction: column;
   gap: 14px;
 }
 
+.landing-card {
+  padding: 30px 28px 28px;
+}
+
 .screen-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 7px;
   align-self: flex-start;
-  padding: 6px 12px;
+  padding: 7px 14px 7px 11px;
   border-radius: 999px;
-  background: rgba(40, 37, 34, 0.9);
+  background: rgba(25, 24, 22, 0.92);
   color: #fffaf0;
   font-size: 0.78rem;
   font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.screen-badge svg {
+  color: #b9aeff;
 }
 
 .screen-card h1 {
-  font-size: clamp(1.6rem, 4vw, 2.2rem);
-  line-height: 1.1;
+  font-size: clamp(1.7rem, 5.4vw, 2.35rem);
+  line-height: 1.06;
+  letter-spacing: -0.015em;
+  color: #1f1d1a;
+}
+
+.landing-title em {
+  font-style: normal;
+  background: linear-gradient(100deg, #7c6cff, #af3850);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: #7c6cff;
 }
 
 .screen-card p {
   margin: 0;
   color: #5f584e;
-  line-height: 1.5;
+  line-height: 1.55;
+}
+
+.landing-lede {
+  font-size: 1.02rem;
+}
+
+.landing-bullets {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 2px 0 4px;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-bullets li {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: #4a443c;
+  font-size: 0.92rem;
+  font-weight: 650;
+}
+
+.lb-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: linear-gradient(145deg, #7c6cff, #af3850);
+  box-shadow: 0 0 0 4px rgba(124, 108, 255, 0.14);
 }
 
 .screen-actions {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .screen-actions .primary-button,
 .screen-actions .secondary-button {
   width: 100%;
-  min-height: 48px;
+  min-height: 50px;
+  font-size: 0.98rem;
+}
+
+.screen-actions .primary-button {
+  background: linear-gradient(135deg, #2a2622, #191816);
+  box-shadow:
+    0 12px 28px rgba(25, 24, 22, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Login ------------------------------------------------------------ */
+.login-card {
+  padding-top: 30px;
+  gap: 12px;
+}
+
+.login-crest {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: center;
+  margin-bottom: 2px;
+  border-radius: 18px;
+  color: #7c6cff;
+  background:
+    radial-gradient(circle at 30% 24%, #ffffff, rgba(255, 255, 255, 0.66) 50%, rgba(236, 232, 220, 0.92));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    0 10px 22px rgba(25, 24, 22, 0.16);
+}
+
+.login-cta {
+  margin-top: 6px;
+}
+
+.login-fineprint {
+  margin: 4px 0 0;
+  color: #837b6f;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .screen-back {
@@ -73,18 +255,34 @@
   font-size: 0.85rem;
 }
 
+.field-opt {
+  margin-left: 5px;
+  color: #9a9286;
+  font-style: normal;
+  font-weight: 600;
+  font-size: 0.76rem;
+}
+
 .field input {
-  min-height: 46px;
-  padding: 0 14px;
-  border-radius: 14px;
+  min-height: 48px;
+  padding: 0 15px;
+  border-radius: 15px;
   border: 1px solid rgba(40, 37, 34, 0.18);
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.82);
   font: inherit;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.field input::placeholder {
+  color: #a39b8e;
 }
 
 .field input:focus {
-  outline: 2px solid rgba(124, 108, 255, 0.5);
-  outline-offset: 1px;
+  outline: none;
+  border-color: rgba(124, 108, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(124, 108, 255, 0.2);
 }
 
 .signout-fab {
@@ -101,4 +299,21 @@
   font-weight: 700;
   font-size: 0.8rem;
   cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lm-pin {
+    animation: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .screen {
+    padding: 18px;
+  }
+
+  .screen-card {
+    padding: 26px 22px 24px;
+    border-radius: 24px;
+  }
 }
