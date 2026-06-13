@@ -1,0 +1,104 @@
+/* Landing + Login screens. Owned by the shell; a sub-agent may polish these. */
+.screen {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(124, 108, 255, 0.18), transparent 42%),
+    radial-gradient(circle at 82% 84%, rgba(170, 60, 84, 0.14), transparent 46%),
+    #ece8dc;
+}
+
+.screen-card {
+  position: relative;
+  width: min(440px, 100%);
+  padding: 32px 28px;
+  border-radius: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.screen-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(40, 37, 34, 0.9);
+  color: #fffaf0;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.screen-card h1 {
+  font-size: clamp(1.6rem, 4vw, 2.2rem);
+  line-height: 1.1;
+}
+
+.screen-card p {
+  margin: 0;
+  color: #5f584e;
+  line-height: 1.5;
+}
+
+.screen-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.screen-actions .primary-button,
+.screen-actions .secondary-button {
+  width: 100%;
+  min-height: 48px;
+}
+
+.screen-back {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 700;
+  color: #4a443c;
+  font-size: 0.85rem;
+}
+
+.field input {
+  min-height: 46px;
+  padding: 0 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(40, 37, 34, 0.18);
+  background: rgba(255, 255, 255, 0.8);
+  font: inherit;
+}
+
+.field input:focus {
+  outline: 2px solid rgba(124, 108, 255, 0.5);
+  outline-offset: 1px;
+}
+
+.signout-fab {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 60;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(40, 37, 34, 0.82);
+  color: #fffaf0;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}

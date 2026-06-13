@@ -1,11 +1,12 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { App } from "./App";
+import { AppShell } from "./AppShell";
 import "./styles.css";
+import "./screens/screens.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <AppShell />
   </React.StrictMode>
 );
 
