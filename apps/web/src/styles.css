@@ -17,9 +17,16 @@ html,
 body,
 #root {
   width: 100%;
-  min-width: 320px;
+  /* Removed min-width:320px — it forced a 320px layout box on sub-320px
+     viewports, overflowing the page and pushing panels to negative visual
+     offsets. Plan-map uses Math.max(320, width) internally so coordinate
+     math is unaffected. */
+  min-width: 0;
   height: 100%;
   margin: 0;
+  /* Prevent Mapbox drag (and any other transient overflow) from creating a
+     horizontal scrollbar that slides fixed/absolute panels off-screen. */
+  overflow-x: hidden;
 }
 
 button {
@@ -205,7 +212,7 @@ button {
 
 .topbar {
   position: absolute;
-  z-index: 20;
+  z-index: 50; /* raised above map pins (inline z 32–44) */
   top: clamp(12px, 2.4vw, 24px);
   left: clamp(12px, 2.4vw, 24px);
   right: auto;
@@ -342,7 +349,9 @@ h2 {
 .map-controls,
 .floating-tapbar {
   position: absolute;
-  z-index: 20;
+  /* Raised from 20 → 50 so all glass UI panels sit above map pins
+     (inline z-index 32–44) but below the story scrim (z 120). */
+  z-index: 50;
   border-radius: 8px;
 }
 
