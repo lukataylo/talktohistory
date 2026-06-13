@@ -26,7 +26,12 @@ import {
   type Story,
   type TimeOfDay,
 } from "@tth/shared";
-import { createPlanMapAdapter, type ScreenPoint } from "./map/mapAdapter";
+import {
+  createMapboxMapRenderer,
+  createPlanMapAdapter,
+  type MapRenderer,
+  type ScreenPoint,
+} from "./map/mapAdapter";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number; strokeWidth?: number }>;
 
@@ -41,6 +46,7 @@ const Sparkles = SparklesRaw as unknown as IconComponent;
 const Volume2 = Volume2Raw as unknown as IconComponent;
 
 const STORAGE_KEY = "talktohistory.memories.v1";
+const DEFAULT_MAPBOX_STYLE = "mapbox://styles/mapbox/light-v11";
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
 type StoryMode = "map" | "story" | "challenge";
@@ -78,13 +84,20 @@ export function App() {
   const [fixStatus, setFixStatus] = useState("Demo position");
   const [walkMeters, setWalkMeters] = useState(0);
   const [isListening, setIsListening] = useState(false);
+  const [mapboxAdapter, setMapboxAdapter] = useState<MapRenderer["adapter"] | null>(null);
+  const [, setMapProjectionTick] = useState(0);
   const mapRef = useRef<HTMLDivElement | null>(null);
+  const mapboxContainerRef = useRef<HTMLDivElement | null>(null);
+  const mapboxRendererRef = useRef<MapRenderer | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
   const lastWalkPoint = useRef<LatLng | null>(null);
 
   const selectedSpot = spots.find((spot) => spot.id === selectedId) ?? spots[0];
-  const adapter = useMemo(() => createPlanMapAdapter(spots, size), [spots, size]);
+  const planAdapter = useMemo(() => createPlanMapAdapter(spots, size), [spots, size]);
+  const adapter = mapboxAdapter ?? planAdapter;
   const userPoint = adapter.project(position);
+  const mapboxToken = getEnvValue(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN);
+  const mapboxStyle = getEnvValue(import.meta.env.VITE_MAPBOX_STYLE) ?? DEFAULT_MAPBOX_STYLE;
 
   const engineRef = useRef<ProximityEngine | null>(null);
 
@@ -128,6 +141,65 @@ export function App() {
     observer.observe(node);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    const container = mapboxContainerRef.current;
+    if (!container || !mapboxToken) {
+      mapboxRendererRef.current?.destroy();
+      mapboxRendererRef.current = null;
+      setMapboxAdapter(null);
+      return;
+    }
+
+    let cancelled = false;
+    let renderer: MapRenderer | null = null;
+
+    try {
+      renderer = createMapboxMapRenderer({
+        accessToken: mapboxToken,
+        center: position,
+        container,
+        onError: (error) => {
+          console.warn("Falling back to plan map", error);
+          renderer?.destroy();
+          if (!cancelled) {
+            mapboxRendererRef.current = null;
+            setMapboxAdapter(null);
+          }
+        },
+        onReady: () => {
+          if (!cancelled && renderer) {
+            mapboxRendererRef.current = renderer;
+            setMapboxAdapter(renderer.adapter);
+          }
+        },
+        onViewChange: () => setMapProjectionTick((tick) => tick + 1),
+        size,
+        spots,
+        styleUrl: mapboxStyle,
+      });
+    } catch (error) {
+      console.warn("Falling back to plan map", error);
+      setMapboxAdapter(null);
+    }
+
+    return () => {
+      cancelled = true;
+      renderer?.destroy();
+      if (mapboxRendererRef.current === renderer) {
+        mapboxRendererRef.current = null;
+      }
+      setMapboxAdapter(null);
+    };
+  }, [mapboxStyle, mapboxToken, spots]);
+
+  useEffect(() => {
+    mapboxRendererRef.current?.resize();
+  }, [size]);
+
+  useEffect(() => {
+    mapboxRendererRef.current?.setUserPosition(position);
+  }, [position]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(memories));
@@ -270,15 +342,22 @@ export function App() {
 
   return (
     <main className="app-shell">
-      <section className="map-stage" ref={mapRef} aria-label="Ghost map">
-        <MapBackdrop />
-        <div className="route route-one" />
-        <div className="route route-two" />
-        <div className="route route-three" />
-        <div className="river" />
-        <div className="map-label label-north">Soho</div>
-        <div className="map-label label-river">River Thames</div>
-        <div className="map-label label-east">Dock Street</div>
+      <section
+        className={`map-stage ${mapboxAdapter ? "has-mapbox" : "has-plan-map"}`}
+        ref={mapRef}
+        aria-label="Ghost map"
+      >
+        <div className={`mapbox-layer ${mapboxAdapter ? "is-ready" : ""}`} ref={mapboxContainerRef} aria-hidden="true" />
+        <div className="plan-map" aria-hidden={mapboxAdapter ? "true" : undefined}>
+          <MapBackdrop />
+          <div className="route route-one" />
+          <div className="route route-two" />
+          <div className="route route-three" />
+          <div className="river" />
+          <div className="map-label label-north">Soho</div>
+          <div className="map-label label-river">River Thames</div>
+          <div className="map-label label-east">Dock Street</div>
+        </div>
 
         {spots.map((spot) => {
           const point = adapter.project({ lat: spot.lat, lng: spot.lng });
@@ -307,8 +386,8 @@ export function App() {
 
         <header className="topbar glass-panel">
           <div>
-            <p className="eyebrow">PWA ghost map</p>
-            <h1>TalkToHistory</h1>
+            <p className="eyebrow">London speaks</p>
+            <h1>NearPast</h1>
           </div>
           <div className="status-cluster">
             <span className="status-pill">
@@ -394,6 +473,33 @@ export function App() {
               <strong>{Math.round(distance)}m</strong>
             </button>
           ))}
+        </nav>
+
+        <nav className="floating-tapbar glass-panel" aria-label="Quick actions">
+          <button type="button" onClick={locateUser} aria-label="Locate me" title="Locate me">
+            <LocateFixed size={21} />
+          </button>
+          <button
+            type="button"
+            onClick={() => selectedSpot && teleportToSpot(selectedSpot)}
+            aria-label="Demo unlock"
+            title="Demo unlock"
+          >
+            <Sparkles size={21} />
+          </button>
+          <button
+            className="tapbar-primary"
+            type="button"
+            onClick={() => selectedSpot && beginStory(selectedSpot)}
+            aria-label="Open story"
+            title="Open story"
+          >
+            <BookOpen size={22} />
+          </button>
+          <button type="button" aria-label="Today memories" title="Today memories">
+            <Aperture size={21} />
+            {todayMemories.length ? <span>{todayMemories.length}</span> : null}
+          </button>
         </nav>
 
         {storyMode !== "map" && currentStory ? (
@@ -601,6 +707,10 @@ function pointStyle(point: ScreenPoint) {
     left: `${point.x}px`,
     top: `${point.y}px`,
   };
+}
+
+function getEnvValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
 function escapeSvg(value: string) {

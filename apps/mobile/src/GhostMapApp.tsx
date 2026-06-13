@@ -12,8 +12,9 @@ import {
 
 import { makeMemoryId } from "./memory";
 import { useLocationAdapter } from "./adapters/locationAdapter";
+import { MapRenderer } from "./adapters/mapRenderer";
+import { getInitialMapCamera, getMapRendererConfig } from "./adapters/mapRendererConfig";
 import { ChallengeCapture } from "./components/ChallengeCapture";
-import { MapLikeRenderer } from "./components/MapLikeRenderer";
 import { MemoryDayView } from "./components/MemoryDayView";
 import { StoryCard } from "./components/StoryCard";
 import { buildDemoStory } from "./data/demoStories";
@@ -71,6 +72,8 @@ export function GhostMapApp() {
   const selectedUnlocked = selectedSpot ? unlockedSpotIds.has(selectedSpot.id) : false;
   const selectedStory = selectedSpot && selectedUnlocked ? buildDemoStory(selectedSpot) : null;
   const todayMemories = memories.filter((memory) => memory.day === today);
+  const mapRendererConfig = useMemo(() => getMapRendererConfig(), []);
+  const mapCamera = useMemo(() => getInitialMapCamera(SEED_SPOTS, position), [position]);
 
   const distanceLabel = useMemo(() => {
     if (!selectedSpot) return "";
@@ -166,11 +169,13 @@ export function GhostMapApp() {
               </Text>
             </View>
 
-            <MapLikeRenderer
+            <MapRenderer
               spots={SEED_SPOTS}
               userLocation={position}
               activeSpotIds={unlockedSpotIds}
               selectedSpotId={selectedSpot?.id ?? null}
+              camera={mapCamera}
+              config={mapRendererConfig}
               onSelectSpot={(spot) => {
                 setCaptureOpen(false);
                 setSelectedSpotId(spot.id);

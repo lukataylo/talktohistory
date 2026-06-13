@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { GhostSpot, LatLng } from "@tth/shared";
+import type { LatLng } from "@tth/shared";
 
-import type { MapRendererProps } from "../adapters/mapRendererTypes";
+import type { MapBounds, MapRendererProps } from "../adapters/mapRendererTypes";
 
 type Point = { x: number; y: number };
 
@@ -10,10 +10,9 @@ export function MapLikeRenderer({
   userLocation,
   activeSpotIds,
   selectedSpotId,
+  camera,
   onSelectSpot
 }: MapRendererProps) {
-  const bounds = getBounds(spots, userLocation);
-
   return (
     <View style={styles.map}>
       <View style={[styles.road, styles.roadOne]} />
@@ -24,7 +23,7 @@ export function MapLikeRenderer({
       <View style={[styles.river]} />
 
       {spots.map((spot) => {
-        const point = project({ lat: spot.lat, lng: spot.lng }, bounds);
+        const point = project({ lat: spot.lat, lng: spot.lng }, camera.bounds);
         const active = activeSpotIds.has(spot.id);
         const selected = selectedSpotId === spot.id;
 
@@ -54,8 +53,8 @@ export function MapLikeRenderer({
           style={[
             styles.userDot,
             {
-              left: `${project(userLocation, bounds).x}%`,
-              top: `${project(userLocation, bounds).y}%`
+              left: `${project(userLocation, camera.bounds).x}%`,
+              top: `${project(userLocation, camera.bounds).y}%`
             }
           ]}
         >
@@ -70,31 +69,11 @@ export function MapLikeRenderer({
   );
 }
 
-function getBounds(spots: GhostSpot[], userLocation: LatLng | null) {
-  const points = [
-    ...spots.map((spot) => ({ lat: spot.lat, lng: spot.lng })),
-    ...(userLocation ? [userLocation] : [])
-  ];
-  const lats = points.map((point) => point.lat);
-  const lngs = points.map((point) => point.lng);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  const latPad = Math.max((maxLat - minLat) * 0.18, 0.002);
-  const lngPad = Math.max((maxLng - minLng) * 0.18, 0.002);
-
-  return {
-    minLat: minLat - latPad,
-    maxLat: maxLat + latPad,
-    minLng: minLng - lngPad,
-    maxLng: maxLng + lngPad
-  };
-}
-
-function project(point: LatLng, bounds: ReturnType<typeof getBounds>): Point {
-  const x = ((point.lng - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * 100;
-  const y = (1 - (point.lat - bounds.minLat) / (bounds.maxLat - bounds.minLat)) * 100;
+function project(point: LatLng, bounds: MapBounds): Point {
+  const latSpan = Math.max(bounds.northEast.lat - bounds.southWest.lat, 0.000001);
+  const lngSpan = Math.max(bounds.northEast.lng - bounds.southWest.lng, 0.000001);
+  const x = ((point.lng - bounds.southWest.lng) / lngSpan) * 100;
+  const y = (1 - (point.lat - bounds.southWest.lat) / latSpan) * 100;
 
   return {
     x: clamp(x, 6, 94),

@@ -41,6 +41,15 @@ ELEVENLABS_VOICE_ID=
 
 Keep `AI_STICKER_PROVIDER=mock` unless the sticker provider is explicitly configured.
 
+Optional Mapbox config for the PWA:
+
+```env
+VITE_MAPBOX_ACCESS_TOKEN=
+VITE_MAPBOX_STYLE=mapbox://styles/mapbox/light-v11
+```
+
+If no Mapbox token is present, the web app falls back to the built-in map-style renderer so the demo still works.
+
 ## Run locally
 
 Build shared packages:
@@ -72,6 +81,12 @@ Useful local URLs:
 - Web app: `http://localhost:5173`
 - API health: `http://localhost:8787/api/health`
 
+## Deployment
+
+Production target brand/domain: **NearPast** at `nearpast.com`.
+
+Railway provisioning notes and next-agent domain instructions live in [RAILWAY_NEARPAST_HANDOFF.md](./RAILWAY_NEARPAST_HANDOFF.md).
+
 ## Validation
 
 ```bash
@@ -82,7 +97,7 @@ pnpm --filter @tth/mobile typecheck
 
 ## Map engine direction
 
-The shared package intentionally uses only portable data contracts such as `LatLng`, `GhostSpot`, `Fix`, and `Memory`. Map rendering is kept inside app-level components/adapters so the current map-style prototype can later move to Mapbox or MapLibre without changing the game logic.
+The shared package intentionally uses only portable data contracts such as `LatLng`, `GhostSpot`, `Fix`, and `Memory`. Map rendering is kept inside app-level components/adapters so the current map-style prototype can move between Mapbox and MapLibre without changing the game logic.
 
 ## Demo notes
 

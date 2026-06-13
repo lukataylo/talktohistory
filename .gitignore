@@ -10,3 +10,6 @@ build/
 .turbo/
 web-build/
 coverage/
+
+# Private hackathon prep — do not commit
+JUDGES_RESEARCH.md

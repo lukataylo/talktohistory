@@ -1,7 +1,7 @@
 {
-  "name": "TalkToHistory",
-  "short_name": "Ghost Map",
-  "description": "Unlock local ghost stories, challenges, and daily memory stickers.",
+  "name": "NearPast",
+  "short_name": "NearPast",
+  "description": "Unlock nearby historical voices, challenges, and daily memory stickers.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f7f6ef",
