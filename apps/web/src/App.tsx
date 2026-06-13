@@ -795,6 +795,20 @@ function StorySheet(props: {
   const walkTarget = challenge.type === "walk" ? challenge.targetMeters : 0;
   const character = getCharacter(props.story.spotId);
   const voice = useVoiceConversation({ voiceIdFor: (c) => VOICE_BY_GUIDE[c.id] });
+
+  // Pre-warm the ElevenLabs WebRTC session the moment the sheet opens so
+  // tapping "Talk" is near-instant instead of waiting ~1-2 s.
+  // This fires inside a user-gesture (the "Open story" tap) so mic permission
+  // can be requested without a secondary prompt.
+  useEffect(() => {
+    if (character) {
+      void voice.warmup(character);
+    }
+    // Intentionally omit voice from deps: warmup is idempotent and we only
+    // want to trigger it once when the sheet first mounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const convoLive =
     voice.status === "requesting-token" ||
     voice.status === "connecting" ||
@@ -842,26 +856,60 @@ function StorySheet(props: {
               ) : null}
               {character ? (
                 <button
-                  className={`primary-button talk-cta ${convoLive ? "is-live" : ""}`}
+                  className={`primary-button talk-cta ${
+                    convoLive
+                      ? "is-live"
+                      : voice.status === "pre-connected"
+                        ? "is-ready"
+                        : voice.status === "pre-connecting"
+                          ? "is-warming"
+                          : ""
+                  }`}
                   type="button"
+                  disabled={voice.status === "pre-connecting"}
                   onClick={() => (convoLive ? voice.stop() : voice.start(character))}
+                  aria-label={
+                    convoLive
+                      ? "End voice conversation"
+                      : voice.status === "pre-connected"
+                        ? `Talk to ${character.name.split(" ")[0]} — session ready`
+                        : `Talk to ${character.name.split(" ")[0]}`
+                  }
                 >
                   <Volume2 size={17} />
-                  {convoLive ? `End conversation` : `Talk to ${character.name.split(" ")[0]}`}
+                  {convoLive
+                    ? "End conversation"
+                    : voice.status === "pre-connected"
+                      ? `Talk to ${character.name.split(" ")[0]} — Ready`
+                      : voice.status === "pre-connecting"
+                        ? "Getting ready…"
+                        : `Talk to ${character.name.split(" ")[0]}`}
                 </button>
               ) : null}
               {voice.status !== "idle" ? (
-                <div className={`voice-convo ${voice.isSpeaking ? "is-speaking" : ""}`}>
+                <div
+                  className={`voice-convo ${
+                    voice.isSpeaking
+                      ? "is-speaking"
+                      : voice.status === "pre-connecting" || voice.status === "pre-connected"
+                        ? "is-warming"
+                        : ""
+                  }`}
+                >
                   <p className="voice-status">
-                    {voice.status === "requesting-token" || voice.status === "connecting"
-                      ? "Connecting…"
-                      : voice.status === "error"
-                        ? `Couldn't connect: ${voice.error ?? "unknown error"}`
-                        : voice.status === "connected"
-                          ? voice.isSpeaking
-                            ? `${character?.name.split(" ")[0]} is speaking…`
-                            : "Listening — speak now"
-                          : "Conversation ended"}
+                    {voice.status === "pre-connecting"
+                      ? "Warming up connection…"
+                      : voice.status === "pre-connected"
+                        ? "Session ready — tap to start speaking"
+                        : voice.status === "requesting-token" || voice.status === "connecting"
+                          ? "Connecting…"
+                          : voice.status === "error"
+                            ? `Couldn't connect: ${voice.error ?? "unknown error"}`
+                            : voice.status === "connected"
+                              ? voice.isSpeaking
+                                ? `${character?.name.split(" ")[0]} is speaking…`
+                                : "Listening — speak now"
+                              : "Conversation ended"}
                   </p>
                   {voice.transcript.length ? (
                     <div className="voice-transcript">
