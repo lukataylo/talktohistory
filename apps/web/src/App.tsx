@@ -501,6 +501,10 @@ export function App() {
 
   function handlePlanPointerDown(event: ReactPointerEvent<HTMLElement>) {
     if (mapboxAdapter || storyMode !== "map" || isInteractiveTarget(event.target)) return;
+    // Ignore additional fingers — a second touch starting while a drag is live
+    // would otherwise hijack planDragRef and produce jittery movement. It also
+    // prevents the plan-map from fighting a pinch gesture on mobile.
+    if (planDragRef.current !== null) return;
     planDragRef.current = {
       originX: planView.offsetX,
       originY: planView.offsetY,

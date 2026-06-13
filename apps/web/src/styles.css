@@ -88,6 +88,9 @@ button {
 .mapbox-layer {
   z-index: 0;
   opacity: 0;
+  /* Prevent the browser from treating this layer as a page-scroll target so
+     Mapbox's own JS-driven pinch-zoom and scroll-zoom can fire unimpeded. */
+  touch-action: none;
   transition: opacity 220ms ease;
 }
 
@@ -110,6 +113,15 @@ button {
 .has-plan-map {
   touch-action: none;
   cursor: grab;
+}
+
+/* When Mapbox is active, suppress browser pinch-page-zoom across the whole
+   map stage (including absolutely-positioned pin buttons and glass panels that
+   sit above the Mapbox canvas and would otherwise trigger a page zoom).
+   pan-x pan-y is kept so scrollable child panels (pin-list, story-sheet) still
+   respond to one-finger scroll; pinch-zoom is handled exclusively by Mapbox JS. */
+.has-mapbox {
+  touch-action: pan-x pan-y;
 }
 
 .has-plan-map:active {

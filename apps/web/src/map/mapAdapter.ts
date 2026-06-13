@@ -121,8 +121,10 @@ export function createMapboxMapRenderer(options: MapboxRendererOptions): MapRend
     attributionControl: false,
     center: [options.center.lng, options.center.lat],
     container: options.container,
-    cooperativeGestures: true,
     pitchWithRotate: false,
+    scrollZoom: true,
+    touchZoomRotate: true,
+    doubleClickZoom: true,
     style: options.styleUrl,
     zoom: 13.1,
   } satisfies MapboxOptions);
