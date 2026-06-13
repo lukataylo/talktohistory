@@ -26,7 +26,7 @@ export function MemoryDayView({ day, memories }: MemoryDayViewProps) {
               <View style={styles.sticker}>
                 <Text style={styles.stickerText}>{index + 1}</Text>
               </View>
-              <Text style={styles.memoryTitle}>{memory.caption ?? "Captured encounter"}</Text>
+              <Text style={styles.memoryTitle}>{memory.caption ?? "Saved spot"}</Text>
               <Text style={styles.memoryMeta}>{new Date(memory.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</Text>
             </View>
           ))}
@@ -38,7 +38,7 @@ export function MemoryDayView({ day, memories }: MemoryDayViewProps) {
 
 const styles = StyleSheet.create({
   wrap: {
-    gap: 16
+    gap: 12
   },
   header: {
     gap: 4
@@ -51,7 +51,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#242620",
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "900"
   },
   empty: {

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Seed ghost spots — shared by the web mock (T1) and the server seed (T2/T4).
+// Seed favorite spots — shared by the web mock (T1) and the server seed (T2/T4).
 // Replace coords with locations near the hackathon venue before the demo.
 // `curated: true` spots should have pre-generated story + audio (RESEARCH.md §4).
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8,43 +8,43 @@ import type { GhostSpot } from "./types.js";
 
 export const SEED_SPOTS: GhostSpot[] = [
   {
-    id: "weeping-lady",
-    title: "The Weeping Lady of Dock Street",
+    id: "dock-street-roastery",
+    title: "Dock Street Roastery",
     lat: 51.5079,
     lng: -0.0877,
     unlockRadius: 40,
-    icon: "ghost-lady",
-    seed: "a heartbroken Victorian dockworker's widow",
+    icon: "coffee",
+    seed: "a riverside cafe where dockworkers, writers, and students overlap",
     curated: true,
   },
   {
-    id: "clockwork-boy",
-    title: "The Clockwork Boy",
+    id: "westminster-books",
+    title: "Westminster Books",
     lat: 51.5074,
     lng: -0.1278,
     unlockRadius: 40,
-    icon: "ghost-child",
-    seed: "an apprentice who never left the watchmaker's shop",
+    icon: "books",
+    seed: "a pocket bookshop near Westminster with notes from every decade",
     curated: true,
   },
   {
-    id: "lantern-keeper",
-    title: "The Lantern Keeper",
+    id: "south-bank-steps",
+    title: "South Bank Steps",
     lat: 51.5033,
     lng: -0.1196,
     unlockRadius: 45,
-    icon: "ghost-lantern",
-    seed: "a lighthouse keeper guarding a river that no longer floods",
+    icon: "walk",
+    seed: "a public stairway where performers, skaters, and night walkers leave traces",
     curated: true,
   },
   {
-    id: "whispering-alley",
-    title: "Whispering Alley",
+    id: "soho-listening-bar",
+    title: "Soho Listening Bar",
     lat: 51.5155,
     lng: -0.1419,
     unlockRadius: 35,
-    icon: "ghost-whisper",
-    seed: "voices of a market that burned three centuries ago",
+    icon: "music",
+    seed: "a late-night corner known for records, regulars, and half-remembered stories",
     curated: true,
   },
 ];

@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Talk to History",
-    "slug": "talk-to-history",
-    "scheme": "talktohistory",
+    "name": "NearPast",
+    "slug": "nearpast",
+    "scheme": "nearpast",
     "version": "0.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
@@ -10,7 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Talk to History uses your location to unlock nearby ghost stories."
+        "NSLocationWhenInUseUsageDescription": "NearPast uses your location to unlock nearby place stories."
       }
     },
     "android": {

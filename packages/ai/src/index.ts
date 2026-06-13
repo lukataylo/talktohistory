@@ -28,10 +28,10 @@ export function createProviders(env: {
       : new MockStoryProvider();
 
   const tts: TtsProvider =
-    env.AI_TTS_PROVIDER === "eleven" && env.ELEVENLABS_API_KEY
+    env.AI_TTS_PROVIDER === "eleven" && env.ELEVENLABS_API_KEY && env.ELEVENLABS_VOICE_ID
       ? new ElevenTtsProvider({
           apiKey: env.ELEVENLABS_API_KEY,
-          defaultVoiceId: env.ELEVENLABS_VOICE_ID ?? "",
+          defaultVoiceId: env.ELEVENLABS_VOICE_ID,
         })
       : new MockTtsProvider();
 

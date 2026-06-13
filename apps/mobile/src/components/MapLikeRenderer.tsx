@@ -30,7 +30,7 @@ export function MapLikeRenderer({
         return (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${spot.title} ghost pin`}
+            accessibilityLabel={`${spot.title} place pin`}
             key={spot.id}
             onPress={() => onSelectSpot(spot)}
             style={[
@@ -43,7 +43,7 @@ export function MapLikeRenderer({
               selected && styles.pinSelected
             ]}
           >
-            <Text style={styles.pinGlyph}>{active ? "!" : "G"}</Text>
+            <Text style={styles.pinGlyph}>{active ? "*" : "."}</Text>
           </Pressable>
         );
       })}
@@ -87,7 +87,7 @@ function clamp(value: number, min: number, max: number) {
 
 const styles = StyleSheet.create({
   map: {
-    minHeight: 420,
+    height: 292,
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: "#cad7cd",
@@ -151,11 +151,11 @@ const styles = StyleSheet.create({
   },
   pin: {
     position: "absolute",
-    width: 44,
-    height: 44,
-    marginLeft: -22,
-    marginTop: -22,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    marginLeft: -20,
+    marginTop: -20,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#2f3430",

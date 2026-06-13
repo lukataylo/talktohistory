@@ -9,21 +9,15 @@ type ExpoPublicEnv = {
   EXPO_PUBLIC_MAPBOX_STYLE_URL?: string;
 };
 
-type RuntimeWithEnv = typeof globalThis & {
-  process?: {
-    env?: ExpoPublicEnv;
-  };
-};
+declare const process: { env: ExpoPublicEnv };
 
 export function getMapRendererConfig(): MapRendererConfig {
-  const env = (globalThis as RuntimeWithEnv).process?.env;
-
   return {
     kind: "expo-go-demo",
     mapbox: {
       // Keep Mapbox config outside source; Expo inlines EXPO_PUBLIC_* values at build/start time.
-      accessToken: readPublicEnvValue(env?.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN),
-      styleUrl: readPublicEnvValue(env?.EXPO_PUBLIC_MAPBOX_STYLE_URL) ?? DEFAULT_MAPBOX_STYLE_URL
+      accessToken: readPublicEnvValue(process.env.EXPO_PUBLIC_MAPBOX_ACCESS_TOKEN),
+      styleUrl: readPublicEnvValue(process.env.EXPO_PUBLIC_MAPBOX_STYLE_URL) ?? DEFAULT_MAPBOX_STYLE_URL
     }
   };
 }

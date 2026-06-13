@@ -15,12 +15,12 @@ export function ChallengeCapture({ spot, visible, onSave, onCancel }: ChallengeC
     <View style={styles.panel}>
       <View style={styles.preview}>
         <View style={styles.focusMark} />
-        <Text style={styles.previewText}>Camera placeholder</Text>
+        <Text style={styles.previewText}>Capture placeholder</Text>
       </View>
       <View style={styles.copy}>
-        <Text style={styles.title}>Seal this encounter</Text>
+        <Text style={styles.title}>Save this spot</Text>
         <Text style={styles.body}>
-          The production flow will open the camera, send the capture for sticker generation, and save it under today's memory.
+          The production flow will open the camera, turn the capture into a sticker, and save it under today's memory.
         </Text>
       </View>
       <View style={styles.actions}>
@@ -37,15 +37,15 @@ export function ChallengeCapture({ spot, visible, onSave, onCancel }: ChallengeC
 
 const styles = StyleSheet.create({
   panel: {
-    gap: 14,
-    padding: 16,
+    gap: 12,
+    padding: 14,
     borderRadius: 8,
     backgroundColor: "#242620",
     borderWidth: 1,
     borderColor: "#4f5a4d"
   },
   preview: {
-    height: 170,
+    height: 148,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: 8,

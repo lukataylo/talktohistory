@@ -22,8 +22,8 @@ export function StoryCard({
     return (
       <View style={styles.card}>
         <Text style={styles.kicker}>Select a pin</Text>
-        <Text style={styles.title}>Find a ghost story nearby</Text>
-        <Text style={styles.body}>Tap any ghost pin to preview the stop, then use demo proximity or live location to unlock it.</Text>
+        <Text style={styles.title}>Find a favorite spot nearby</Text>
+        <Text style={styles.body}>Tap any place pin to preview the stop, then unlock it with the demo button or live location.</Text>
       </View>
     );
   }
@@ -52,10 +52,10 @@ export function StoryCard({
       ) : (
         <>
           <Text style={styles.body}>
-            Move within this stop's unlock radius, or trigger a synthetic approach for the hackathon demo.
+            Move within this stop's unlock radius, or use the demo unlock to open the story now.
           </Text>
           <Pressable accessibilityRole="button" onPress={onDemoUnlock} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Demo proximity unlock</Text>
+            <Text style={styles.primaryButtonText}>Demo unlock</Text>
           </Pressable>
         </>
       )}
@@ -65,8 +65,8 @@ export function StoryCard({
 
 const styles = StyleSheet.create({
   card: {
-    gap: 12,
-    padding: 16,
+    gap: 10,
+    padding: 14,
     borderRadius: 8,
     backgroundColor: "#fffaf0",
     borderWidth: 1,
@@ -103,9 +103,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#242620",
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "900",
-    lineHeight: 27
+    lineHeight: 25
   },
   body: {
     color: "#42463d",

@@ -1,6 +1,6 @@
 // Postgres Storage (T4 stretch). Implements the same interface as MemoryStore.
 // Run schema.sql once (Railway Postgres). `pg` is an optional peer dep.
-import type { GhostSpot, Memory, Story } from "@tth/shared";
+import { SEED_SPOTS, type GhostSpot, type Memory, type Story } from "@tth/shared";
 import type { Storage } from "./storage.js";
 
 export class PostgresStore implements Storage {
@@ -15,8 +15,11 @@ export class PostgresStore implements Storage {
   async init() {
     const pg = await import("pg");
     this.pool = new pg.Pool({ connectionString: this.url });
-    // Caller is expected to have applied schema.sql; keep init cheap.
     await this.pool.query("SELECT 1");
+    const { rows } = await this.pool.query("SELECT COUNT(*) AS count FROM spots");
+    if (Number(rows[0]?.count ?? 0) === 0) {
+      await this.upsertSpots(SEED_SPOTS);
+    }
   }
 
   async listSpots(): Promise<GhostSpot[]> {

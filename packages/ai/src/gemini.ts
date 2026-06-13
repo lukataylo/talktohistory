@@ -52,6 +52,55 @@ export class GeminiStoryProvider implements StoryProvider {
     });
 
     const parsed = JSON.parse(res.text ?? "{}");
-    return { spotId: req.spotId, ...parsed };
+    return normalizeStoryResponse(req.spotId, parsed);
   }
+}
+
+function normalizeStoryResponse(spotId: string, parsed: unknown): StoryResponse {
+  if (!isRecord(parsed)) throw new Error("Gemini returned a non-object story");
+  if (typeof parsed.title !== "string" || parsed.title.trim().length === 0) {
+    throw new Error("Gemini story is missing title");
+  }
+  if (typeof parsed.narration !== "string" || parsed.narration.trim().length === 0) {
+    throw new Error("Gemini story is missing narration");
+  }
+  if (!isRecord(parsed.challenge)) throw new Error("Gemini story is missing challenge");
+  if (typeof parsed.challenge.instruction !== "string" || parsed.challenge.instruction.trim().length === 0) {
+    throw new Error("Gemini challenge is missing instruction");
+  }
+
+  if (parsed.challenge.type === "walk") {
+    const targetMeters =
+      typeof parsed.challenge.targetMeters === "number" && parsed.challenge.targetMeters > 0
+        ? parsed.challenge.targetMeters
+        : 80;
+    return {
+      spotId,
+      title: parsed.title,
+      narration: parsed.narration,
+      challenge: {
+        type: "walk",
+        instruction: parsed.challenge.instruction,
+        targetMeters,
+      },
+    };
+  }
+
+  if (parsed.challenge.type === "selfie") {
+    return {
+      spotId,
+      title: parsed.title,
+      narration: parsed.narration,
+      challenge: {
+        type: "selfie",
+        instruction: parsed.challenge.instruction,
+      },
+    };
+  }
+
+  throw new Error("Gemini challenge type must be selfie or walk");
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

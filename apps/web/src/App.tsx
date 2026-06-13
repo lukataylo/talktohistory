@@ -1,21 +1,27 @@
 import {
   Aperture as ApertureRaw,
   BookOpen as BookOpenRaw,
+  ChevronDown as ChevronDownRaw,
+  ChevronLeft as ChevronLeftRaw,
+  ChevronRight as ChevronRightRaw,
+  ChevronUp as ChevronUpRaw,
+  Coffee as CoffeeRaw,
   Footprints as FootprintsRaw,
-  Ghost as GhostRaw,
   LocateFixed as LocateFixedRaw,
   MapPin as MapPinRaw,
+  Minus as MinusRaw,
+  Music as MusicRaw,
   Navigation as NavigationRaw,
+  Plus as PlusRaw,
+  RotateCcw as RotateCcwRaw,
   Sparkles as SparklesRaw,
   Volume2 as Volume2Raw,
 } from "lucide-react";
-import type { ComponentType, SVGProps } from "react";
+import type { ComponentType, PointerEvent as ReactPointerEvent, SVGProps } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  API_ROUTES,
   ProximityEngine,
   SEED_SPOTS,
-  buildStoryUserPrompt,
   haversineMeters,
   type Challenge,
   type Fix,
@@ -30,6 +36,7 @@ import {
   createMapboxMapRenderer,
   createPlanMapAdapter,
   type MapRenderer,
+  type PlanMapView,
   type ScreenPoint,
 } from "./map/mapAdapter";
 
@@ -37,11 +44,19 @@ type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number; st
 
 const Aperture = ApertureRaw as unknown as IconComponent;
 const BookOpen = BookOpenRaw as unknown as IconComponent;
+const ChevronDown = ChevronDownRaw as unknown as IconComponent;
+const ChevronLeft = ChevronLeftRaw as unknown as IconComponent;
+const ChevronRight = ChevronRightRaw as unknown as IconComponent;
+const ChevronUp = ChevronUpRaw as unknown as IconComponent;
+const Coffee = CoffeeRaw as unknown as IconComponent;
 const Footprints = FootprintsRaw as unknown as IconComponent;
-const Ghost = GhostRaw as unknown as IconComponent;
 const LocateFixed = LocateFixedRaw as unknown as IconComponent;
 const MapPin = MapPinRaw as unknown as IconComponent;
+const Minus = MinusRaw as unknown as IconComponent;
+const Music = MusicRaw as unknown as IconComponent;
 const Navigation = NavigationRaw as unknown as IconComponent;
+const Plus = PlusRaw as unknown as IconComponent;
+const RotateCcw = RotateCcwRaw as unknown as IconComponent;
 const Sparkles = SparklesRaw as unknown as IconComponent;
 const Volume2 = Volume2Raw as unknown as IconComponent;
 
@@ -50,24 +65,39 @@ const DEFAULT_MAPBOX_STYLE = "mapbox://styles/mapbox/light-v11";
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
 type StoryMode = "map" | "story" | "challenge";
+type PlanDrag = {
+  originX: number;
+  originY: number;
+  pointerId: number;
+  startX: number;
+  startY: number;
+};
 
 const DEMO_START: LatLng = { lat: 51.5115, lng: -0.105 };
+const PLAN_VIEW_DEFAULT: PlanMapView = { offsetX: 0, offsetY: 0, zoom: 1 };
+
+const DISPLAY_TITLES: Record<string, string> = {
+  "dock-street-roastery": "Dock Street Roastery",
+  "westminster-books": "Westminster Books",
+  "south-bank-steps": "South Bank Steps",
+  "soho-listening-bar": "Soho Listening Bar",
+};
 
 const SPOT_COPY: Record<string, { mood: string; clue: string }> = {
-  "weeping-lady": {
-    mood: "A salt-white figure listens under the bridge lights.",
-    clue: "Unlocked near the river wall",
+  "dock-street-roastery": {
+    mood: "Coffee, river air, and old warehouse brick make this a saved morning spot.",
+    clue: "Unlock beside the river wall",
   },
-  "clockwork-boy": {
-    mood: "Tiny brass footsteps count seconds behind closed shutters.",
-    clue: "Unlocked around Westminster",
+  "westminster-books": {
+    mood: "A compact bookshop corner with marginal notes, tourists, and quiet regulars.",
+    clue: "Unlock around Westminster",
   },
-  "lantern-keeper": {
-    mood: "A lamp swings over black water even when the air is still.",
+  "south-bank-steps": {
+    mood: "Steps, performers, and river light turn this walk into a small ritual.",
     clue: "Unlocked on the South Bank",
   },
-  "whispering-alley": {
-    mood: "Market voices leak from brickwork after the last shop closes.",
+  "soho-listening-bar": {
+    mood: "A late-night corner where records, regulars, and street noise blur together.",
     clue: "Unlocked by the west-end lanes",
   },
 };
@@ -84,16 +114,19 @@ export function App() {
   const [fixStatus, setFixStatus] = useState("Demo position");
   const [walkMeters, setWalkMeters] = useState(0);
   const [isListening, setIsListening] = useState(false);
+  const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
   const [mapboxAdapter, setMapboxAdapter] = useState<MapRenderer["adapter"] | null>(null);
+  const [planView, setPlanView] = useState<PlanMapView>(PLAN_VIEW_DEFAULT);
   const [, setMapProjectionTick] = useState(0);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapboxContainerRef = useRef<HTMLDivElement | null>(null);
   const mapboxRendererRef = useRef<MapRenderer | null>(null);
   const speechRef = useRef<SpeechSynthesisUtterance | null>(null);
   const lastWalkPoint = useRef<LatLng | null>(null);
+  const planDragRef = useRef<PlanDrag | null>(null);
 
   const selectedSpot = spots.find((spot) => spot.id === selectedId) ?? spots[0];
-  const planAdapter = useMemo(() => createPlanMapAdapter(spots, size), [spots, size]);
+  const planAdapter = useMemo(() => createPlanMapAdapter(spots, size, planView), [planView, spots, size]);
   const adapter = mapboxAdapter ?? planAdapter;
   const userPoint = adapter.project(position);
   const mapboxToken = getEnvValue(import.meta.env.VITE_MAPBOX_ACCESS_TOKEN);
@@ -231,9 +264,25 @@ export function App() {
     engineRef.current?.onFix({ ...fix, timestamp: Date.now() });
   }
 
-  function teleportToSpot(spot: GhostSpot) {
+  function selectSpot(spot: GhostSpot) {
     setSelectedId(spot.id);
+    setStoryMode("map");
+    setCurrentStory(null);
+    setCapturedPhotoUrl(null);
+    stopNarration();
+    setFixStatus(activeIds.has(spot.id) ? "Spot selected" : "Spot selected; tap unlock");
+  }
+
+  function unlockSpotNow(spot: GhostSpot) {
+    setSelectedId(spot.id);
+    setPosition({ lat: spot.lat, lng: spot.lng });
+    setActiveIds((ids) => new Set(ids).add(spot.id));
+    setFixStatus(`Unlocked ${displaySpotTitle(spot)}`);
+  }
+
+  function teleportToSpot(spot: GhostSpot) {
     setFixStatus("Demo unlock injected");
+    unlockSpotNow(spot);
     for (let i = 0; i < 3; i += 1) {
       injectFix({
         lat: spot.lat + i * 0.000004,
@@ -267,14 +316,14 @@ export function App() {
 
   function beginStory(spot: GhostSpot) {
     if (!activeIds.has(spot.id)) {
-      setSelectedId(spot.id);
-      return;
+      unlockSpotNow(spot);
     }
 
     const story = createDemoStory(spot);
     setCurrentStory(story);
     setStoryMode("story");
     setWalkMeters(0);
+    setCapturedPhotoUrl(null);
     lastWalkPoint.current = null;
     stopNarration();
   }
@@ -317,13 +366,14 @@ export function App() {
 
   function saveMemory(kind: "selfie" | "walk") {
     if (!selectedSpot) return;
+    const photoUrl = kind === "selfie" && capturedPhotoUrl ? capturedPhotoUrl : createStickerDataUrl(selectedSpot, kind, false);
     const memory: Memory = {
       id: crypto.randomUUID(),
       day: todayKey(),
       spotId: selectedSpot.id,
-      photoUrl: createStickerDataUrl(selectedSpot, kind, false),
+      photoUrl,
       stickerUrl: createStickerDataUrl(selectedSpot, kind, true),
-      caption: kind === "selfie" ? "Proof from the haunting" : "Trail mark collected",
+      caption: kind === "selfie" ? "Favorite detail captured" : "Trail mark collected",
       lat: position.lat,
       lng: position.lng,
       createdAt: Date.now(),
@@ -331,7 +381,68 @@ export function App() {
     setMemories((items) => [memory, ...items]);
     setStoryMode("map");
     setCurrentStory(null);
+    setCapturedPhotoUrl(null);
     stopNarration();
+  }
+
+  function handleCapturePhoto(file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        setCapturedPhotoUrl(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function setPlanZoom(nextZoom: number) {
+    setPlanView((view) => ({
+      ...view,
+      zoom: Math.max(0.72, Math.min(2.35, nextZoom)),
+    }));
+  }
+
+  function panPlanBy(x: number, y: number) {
+    setPlanView((view) => ({
+      ...view,
+      offsetX: clampPlanOffset(view.offsetX + x),
+      offsetY: clampPlanOffset(view.offsetY + y),
+    }));
+  }
+
+  function resetPlanView() {
+    setPlanView(PLAN_VIEW_DEFAULT);
+    setFixStatus("Map view reset");
+  }
+
+  function handlePlanPointerDown(event: ReactPointerEvent<HTMLElement>) {
+    if (mapboxAdapter || storyMode !== "map" || isInteractiveTarget(event.target)) return;
+    planDragRef.current = {
+      originX: planView.offsetX,
+      originY: planView.offsetY,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function handlePlanPointerMove(event: ReactPointerEvent<HTMLElement>) {
+    const drag = planDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    setPlanView((view) => ({
+      ...view,
+      offsetX: clampPlanOffset(drag.originX + event.clientX - drag.startX),
+      offsetY: clampPlanOffset(drag.originY + event.clientY - drag.startY),
+    }));
+  }
+
+  function handlePlanPointerEnd(event: ReactPointerEvent<HTMLElement>) {
+    if (planDragRef.current?.pointerId === event.pointerId) {
+      planDragRef.current = null;
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
   }
 
   const currentChallenge = currentStory?.challenge;
@@ -345,10 +456,14 @@ export function App() {
       <section
         className={`map-stage ${mapboxAdapter ? "has-mapbox" : "has-plan-map"}`}
         ref={mapRef}
-        aria-label="Ghost map"
+        aria-label="Favorite spots map"
+        onPointerDown={handlePlanPointerDown}
+        onPointerMove={handlePlanPointerMove}
+        onPointerUp={handlePlanPointerEnd}
+        onPointerCancel={handlePlanPointerEnd}
       >
         <div className={`mapbox-layer ${mapboxAdapter ? "is-ready" : ""}`} ref={mapboxContainerRef} aria-hidden="true" />
-        <div className="plan-map" aria-hidden={mapboxAdapter ? "true" : undefined}>
+        <div className="plan-map" style={planViewStyle(planView)} aria-hidden={mapboxAdapter ? "true" : undefined}>
           <MapBackdrop />
           <div className="route route-one" />
           <div className="route route-two" />
@@ -365,17 +480,19 @@ export function App() {
           const isSelected = selectedId === spot.id;
           return (
             <button
-              className={`ghost-pin ${isActive ? "is-active" : ""} ${
+              className={`place-pin ${isActive ? "is-active" : ""} ${
                 isSelected ? "is-selected" : ""
               }`}
               key={spot.id}
               style={pointStyle(point)}
               type="button"
-              onClick={() => beginStory(spot)}
-              aria-label={`${spot.title} ${isActive ? "unlocked" : "locked"}`}
+              onClick={() => selectSpot(spot)}
+              aria-label={`${displaySpotTitle(spot)} ${isActive ? "unlocked" : "locked"}`}
             >
               <span className="pin-halo" />
-              <Ghost size={28} strokeWidth={2.2} />
+              <span className="place-pin-glyph">
+                <PinIcon spot={spot} />
+              </span>
             </button>
           );
         })}
@@ -384,9 +501,35 @@ export function App() {
           <Navigation size={16} fill="currentColor" />
         </div>
 
+        {!mapboxAdapter ? (
+          <div className="map-controls glass-panel" aria-label="Fallback map controls">
+            <button type="button" onClick={() => panPlanBy(0, 76)} aria-label="Pan map north" title="Pan map north">
+              <ChevronUp size={18} />
+            </button>
+            <button type="button" onClick={() => panPlanBy(-76, 0)} aria-label="Pan map west" title="Pan map west">
+              <ChevronLeft size={18} />
+            </button>
+            <button type="button" onClick={() => setPlanZoom(planView.zoom + 0.18)} aria-label="Zoom in" title="Zoom in">
+              <Plus size={18} />
+            </button>
+            <button type="button" onClick={() => setPlanZoom(planView.zoom - 0.18)} aria-label="Zoom out" title="Zoom out">
+              <Minus size={18} />
+            </button>
+            <button type="button" onClick={() => panPlanBy(76, 0)} aria-label="Pan map east" title="Pan map east">
+              <ChevronRight size={18} />
+            </button>
+            <button type="button" onClick={() => panPlanBy(0, -76)} aria-label="Pan map south" title="Pan map south">
+              <ChevronDown size={18} />
+            </button>
+            <button className="map-reset" type="button" onClick={resetPlanView} aria-label="Reset map view" title="Reset map view">
+              <RotateCcw size={17} />
+            </button>
+          </div>
+        ) : null}
+
         <header className="topbar glass-panel">
           <div>
-            <p className="eyebrow">London speaks</p>
+            <p className="eyebrow">Find their favorite spots</p>
             <h1>NearPast</h1>
           </div>
           <div className="status-cluster">
@@ -406,8 +549,8 @@ export function App() {
               <MapPin size={17} />
             </span>
             <div>
-              <p className="eyebrow">Nearest haunt</p>
-              <h2>{selectedSpot?.title}</h2>
+              <p className="eyebrow">Selected spot</p>
+              <h2>{selectedSpot ? displaySpotTitle(selectedSpot) : ""}</h2>
             </div>
           </div>
           <p className="spot-mood">{selectedSpot ? SPOT_COPY[selectedSpot.id]?.mood : ""}</p>
@@ -421,7 +564,7 @@ export function App() {
           <div className="dock-actions">
             <button className="primary-button" type="button" onClick={() => selectedSpot && beginStory(selectedSpot)}>
               <BookOpen size={17} />
-              {selectedUnlocked ? "Open story" : "Select pin"}
+              {selectedUnlocked ? "Open story" : "Unlock spot"}
             </button>
             <button className="secondary-button" type="button" onClick={() => selectedSpot && teleportToSpot(selectedSpot)}>
               <Sparkles size={17} />
@@ -442,7 +585,7 @@ export function App() {
           <div className="sticker-grid">
             {todayMemories.length ? (
               todayMemories.slice(0, 4).map((memory) => (
-                <img key={memory.id} src={memory.stickerUrl} alt={memory.caption ?? "Ghost sticker"} />
+                <img key={memory.id} src={memory.stickerUrl} alt={memory.caption ?? "Memory sticker"} />
               ))
             ) : (
               <>
@@ -460,16 +603,16 @@ export function App() {
           </p>
         </aside>
 
-        <nav className="pin-list glass-panel" aria-label="Ghost spots">
+        <nav className="pin-list glass-panel" aria-label="Favorite spots">
           {sortedSpots.map(({ spot, distance, active }) => (
             <button
               key={spot.id}
               className={selectedId === spot.id ? "is-selected" : ""}
               type="button"
-              onClick={() => setSelectedId(spot.id)}
+              onClick={() => selectSpot(spot)}
             >
               <span className={active ? "pin-dot active" : "pin-dot"} />
-              <span>{spot.title.replace("The ", "")}</span>
+              <span>{displaySpotTitle(spot)}</span>
               <strong>{Math.round(distance)}m</strong>
             </button>
           ))}
@@ -496,7 +639,7 @@ export function App() {
           >
             <BookOpen size={22} />
           </button>
-          <button type="button" aria-label="Today memories" title="Today memories">
+          <button type="button" onClick={() => setFixStatus("Today memories are open")} aria-label="Today memories" title="Today memories">
             <Aperture size={21} />
             {todayMemories.length ? <span>{todayMemories.length}</span> : null}
           </button>
@@ -514,9 +657,11 @@ export function App() {
               stopNarration();
             }}
             onChallenge={() => setStoryMode("challenge")}
+            onCapturePhoto={handleCapturePhoto}
             onNarrate={narrate}
             onSave={saveMemory}
             story={currentStory}
+            capturedPhotoUrl={capturedPhotoUrl}
             walkMeters={walkMeters}
           />
         ) : null}
@@ -526,12 +671,14 @@ export function App() {
 }
 
 function StorySheet(props: {
+  capturedPhotoUrl: string | null;
   challengeComplete: boolean;
   isListening: boolean;
   mode: StoryMode;
   onAdvanceWalk: () => void;
   onBack: () => void;
   onChallenge: () => void;
+  onCapturePhoto: (file: File | null) => void;
   onNarrate: () => void;
   onSave: (kind: "selfie" | "walk") => void;
   story: Story;
@@ -544,11 +691,11 @@ function StorySheet(props: {
     <div className="story-scrim">
       <section className="story-sheet glass-panel" aria-label="Story mode">
         <div className="story-art">
-          <Ghost size={48} />
+          <BookOpen size={48} />
           <span />
         </div>
         <div className="story-content">
-          <p className="eyebrow">{props.mode === "story" ? "Story mode" : "Challenge"}</p>
+          <p className="eyebrow">{props.mode === "story" ? "Place story" : "Challenge"}</p>
           <h2>{props.story.title}</h2>
           {props.mode === "story" ? (
             <>
@@ -584,8 +731,20 @@ function StorySheet(props: {
                 </div>
               ) : (
                 <div className="camera-card">
-                  <Aperture size={30} />
-                  <span>Demo camera ready</span>
+                  {props.capturedPhotoUrl ? (
+                    <img src={props.capturedPhotoUrl} alt="Captured place detail" />
+                  ) : (
+                    <Aperture size={30} />
+                  )}
+                  <label>
+                    <span>{props.capturedPhotoUrl ? "Photo ready" : "Open camera"}</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={(event) => props.onCapturePhoto(event.currentTarget.files?.[0] ?? null)}
+                    />
+                  </label>
                 </div>
               )}
               <div className="story-actions">
@@ -632,43 +791,36 @@ function MapBackdrop() {
 
 function createDemoStory(spot: GhostSpot): Story {
   const timeOfDay = getTimeOfDay();
-  const prompt = buildStoryUserPrompt({
-    spotId: spot.id,
-    lat: spot.lat,
-    lng: spot.lng,
-    timeOfDay,
-    seed: spot.seed,
-    placeName: spot.title,
-  });
+  const title = displaySpotTitle(spot);
   const challenge: Challenge =
-    spot.id === "lantern-keeper" || spot.id === "whispering-alley"
+    spot.id === "south-bank-steps" || spot.id === "soho-listening-bar"
       ? {
           type: "walk",
-          instruction: "Follow the cold patch in the pavement until it loosens its grip.",
+          instruction: "Walk the block and notice what changes: sound, light, signage, faces. Save the route when the place starts to feel familiar.",
           targetMeters: 45,
         }
       : {
           type: "selfie",
-          instruction: "Take a brave photo facing the place where the ghost would be standing.",
+          instruction: "Take a photo of the detail that would make someone save this spot: a cup, shelf, sign, corner, or view.",
         };
 
   return {
     spotId: spot.id,
-    title: spot.title,
-    narration: `${SPOT_COPY[spot.id]?.mood ?? "The street holds its breath."} You step into the edge of ${spot.title}, and the city seems to lower its voice. The map light flickers across old stone, naming a place that remembers more footsteps than it should. In the ${timeOfDay}, the legend feels close enough to answer. ${spot.seed ?? "A local spirit"} circles the corner, not angry, only unfinished. Your phone warms in your hand. A pin opens like an eye, and for a second the modern street and its buried story line up perfectly. ${prompt.includes(API_ROUTES.story) ? "" : "The ghost waits for proof that you heard it."}`,
+    title,
+    narration: `${SPOT_COPY[spot.id]?.mood ?? "This place has the feel of a regular's shortcut."} You step into ${title} in the ${timeOfDay}, and NearPast starts reading the small signals: the view people photograph, the seat they choose twice, the route they take without thinking. Save one detail and the map turns it into a memory sticker for today.`,
     challenge,
   };
 }
 
 function createStickerDataUrl(spot: GhostSpot, kind: "selfie" | "walk", sticker: boolean) {
-  const title = spot.title.replace("The ", "").split(" ").slice(0, 2).join(" ");
+  const title = displaySpotTitle(spot).split(" ").slice(0, 2).join(" ");
   const glyph = kind === "walk" ? "foot" : "face";
   const bg = sticker ? "#fffdf2" : "#ded8c5";
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 220">
     <rect width="220" height="220" rx="44" fill="${bg}"/>
-    <path d="M44 146c28-8 28-42 48-66 26-31 86-27 108 12 18 31 6 74 22 101-18-3-28-14-40-24-13 12-28 23-50 23-41 1-58-30-88-46Z" fill="#2b2927"/>
-    <path d="M82 133c9-45 24-68 51-68 32 0 50 27 50 70 0 20-11 36-27 36-11 0-19-8-27-8-9 0-18 16-32 12-15-4-19-21-15-42Z" fill="#fffef9"/>
-    <text x="110" y="106" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700" fill="#2b2927">${glyph}</text>
+    <circle cx="110" cy="104" r="58" fill="#2b2927"/>
+    <circle cx="110" cy="104" r="45" fill="#fffef9"/>
+    <text x="110" y="112" text-anchor="middle" font-family="Arial" font-size="20" font-weight="700" fill="#2b2927">${glyph}</text>
     <text x="110" y="202" text-anchor="middle" font-family="Arial" font-size="18" font-weight="700" fill="#2b2927">${escapeSvg(title)}</text>
   </svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
@@ -698,6 +850,10 @@ function getUnlockPercent(distance: number, spot: GhostSpot | undefined) {
   return Math.max(8, Math.min(100, progress));
 }
 
+function displaySpotTitle(spot: GhostSpot) {
+  return DISPLAY_TITLES[spot.id] ?? spot.title.replace(/^The /, "");
+}
+
 function formatDay(day: string) {
   return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(`${day}T12:00:00`));
 }
@@ -707,6 +863,31 @@ function pointStyle(point: ScreenPoint) {
     left: `${point.x}px`,
     top: `${point.y}px`,
   };
+}
+
+function planViewStyle(view: PlanMapView) {
+  return {
+    transform: `translate(${view.offsetX}px, ${view.offsetY}px) scale(${view.zoom})`,
+  };
+}
+
+function PinIcon({ spot }: { spot: GhostSpot }) {
+  const iconProps = { size: 22, strokeWidth: 2.25 };
+  if (spot.icon === "coffee") return <Coffee {...iconProps} />;
+  if (spot.icon === "books") return <BookOpen {...iconProps} />;
+  if (spot.icon === "music") return <Music {...iconProps} />;
+  if (spot.icon === "walk") return <Footprints {...iconProps} />;
+  return <MapPin {...iconProps} />;
+}
+
+function clampPlanOffset(value: number) {
+  return Math.max(-520, Math.min(520, value));
+}
+
+function isInteractiveTarget(target: EventTarget) {
+  return target instanceof HTMLElement
+    ? Boolean(target.closest("button, a, input, label, textarea, select, .glass-panel, .mapbox-layer"))
+    : false;
 }
 
 function getEnvValue(value: unknown) {

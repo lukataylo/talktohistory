@@ -24,6 +24,12 @@ export type MapRenderer = {
   setUserPosition(point: LatLng): void;
 };
 
+export type PlanMapView = {
+  offsetX: number;
+  offsetY: number;
+  zoom: number;
+};
+
 export type MapboxRendererOptions = {
   accessToken: string;
   center: LatLng;
@@ -52,12 +58,28 @@ const EMPTY_BOUNDS: Bounds = {
 
 export function createPlanMapAdapter(
   spots: GhostSpot[],
-  size: { width: number; height: number }
+  size: { width: number; height: number },
+  view: PlanMapView = { offsetX: 0, offsetY: 0, zoom: 1 }
 ): MapAdapter {
   const bounds = getBounds(spots);
   const padding = Math.max(42, Math.min(size.width, size.height) * 0.12);
   const width = Math.max(1, size.width - padding * 2);
   const height = Math.max(1, size.height - padding * 2);
+  const center = { x: size.width / 2, y: size.height / 2 };
+
+  function applyView(point: ScreenPoint): ScreenPoint {
+    return {
+      x: center.x + (point.x - center.x) * view.zoom + view.offsetX,
+      y: center.y + (point.y - center.y) * view.zoom + view.offsetY,
+    };
+  }
+
+  function removeView(point: ScreenPoint): ScreenPoint {
+    return {
+      x: center.x + (point.x - view.offsetX - center.x) / view.zoom,
+      y: center.y + (point.y - view.offsetY - center.y) / view.zoom,
+    };
+  }
 
   return {
     name: "plan-renderer",
@@ -66,14 +88,15 @@ export function createPlanMapAdapter(
       const latSpan = Math.max(0.0001, bounds.maxLat - bounds.minLat);
       const x = padding + ((point.lng - bounds.minLng) / lngSpan) * width;
       const y = padding + ((bounds.maxLat - point.lat) / latSpan) * height;
-      return { x, y };
+      return applyView({ x, y });
     },
     unproject(point) {
+      const unviewed = removeView(point);
       const lngSpan = Math.max(0.0001, bounds.maxLng - bounds.minLng);
       const latSpan = Math.max(0.0001, bounds.maxLat - bounds.minLat);
       return {
-        lat: bounds.maxLat - ((point.y - padding) / height) * latSpan,
-        lng: bounds.minLng + ((point.x - padding) / width) * lngSpan,
+        lat: bounds.maxLat - ((unviewed.y - padding) / height) * latSpan,
+        lng: bounds.minLng + ((unviewed.x - padding) / width) * lngSpan,
       };
     },
     markerForSpot(spot) {

@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, SafeAreaView, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar as NativeStatusBar,
+  StyleSheet,
+  Text,
+  View
+} from "react-native";
 import {
   haversineMeters,
   ProximityEngine,
@@ -22,13 +31,13 @@ import { buildDemoStory } from "./data/demoStories";
 type ViewMode = "map" | "memories";
 
 export function GhostMapApp() {
-  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [today, setToday] = useState(() => getLocalCalendarDay(new Date()));
   const location = useLocationAdapter();
   const [viewMode, setViewMode] = useState<ViewMode>("map");
   const [selectedSpotId, setSelectedSpotId] = useState<string | null>(SEED_SPOTS[0]?.id ?? null);
   const [unlockedSpotIds, setUnlockedSpotIds] = useState<Set<string>>(() => new Set());
   const [position, setPosition] = useState<LatLng | null>(null);
-  const [lastEvent, setLastEvent] = useState("Waiting for proximity");
+  const [lastEvent, setLastEvent] = useState("Pick a favorite spot to preview");
   const [captureOpen, setCaptureOpen] = useState(false);
   const [memories, setMemories] = useState<Memory[]>([]);
 
@@ -51,7 +60,7 @@ export function GhostMapApp() {
         return;
       }
 
-      setLastEvent(`${event.spot.title} drifted out of range`);
+      setLastEvent(`${event.spot.title} is out of range`);
     });
   }
 
@@ -91,7 +100,7 @@ export function GhostMapApp() {
     if (!spot) return;
     setCaptureOpen(false);
     setSelectedSpotId(spot.id);
-    setLastEvent("Synthetic demo approach started");
+    setLastEvent(`Demo approach started for ${spot.title}`);
 
     const fix = location.makeSyntheticFix(spot);
     feedFix(fix);
@@ -102,9 +111,12 @@ export function GhostMapApp() {
   function savePlaceholderMemory() {
     if (!selectedSpot) return;
 
+    const localDay = getLocalCalendarDay(new Date());
+    setToday(localDay);
+
     const memory: Memory = {
       id: makeMemoryId(),
-      day: today,
+      day: localDay,
       spotId: selectedSpot.id,
       photoUrl: "local-placeholder://capture",
       stickerUrl: "local-placeholder://sticker",
@@ -124,12 +136,12 @@ export function GhostMapApp() {
       <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.kicker}>Hackathon build</Text>
-            <Text style={styles.title}>Ghost Map</Text>
+            <Text style={styles.kicker}>Favorite spots</Text>
+            <Text style={styles.title}>NearPast</Text>
           </View>
           <View style={styles.counter}>
             <Text style={styles.counterNumber}>{unlockedSpotIds.size}</Text>
-            <Text style={styles.counterLabel}>found</Text>
+            <Text style={styles.counterLabel}>unlocked</Text>
           </View>
         </View>
 
@@ -146,7 +158,7 @@ export function GhostMapApp() {
             onPress={() => setViewMode("memories")}
             style={[styles.segment, viewMode === "memories" && styles.segmentActive]}
           >
-            <Text style={[styles.segmentText, viewMode === "memories" && styles.segmentTextActive]}>Memory Day</Text>
+            <Text style={[styles.segmentText, viewMode === "memories" && styles.segmentTextActive]}>Memories</Text>
           </Pressable>
         </View>
 
@@ -157,7 +169,7 @@ export function GhostMapApp() {
                 <Text style={styles.toolbarButtonText}>Use location</Text>
               </Pressable>
               <Pressable accessibilityRole="button" onPress={() => unlockWithDemo(selectedSpot)} style={styles.toolbarButtonAlt}>
-                <Text style={styles.toolbarButtonAltText}>Demo nearby</Text>
+                <Text style={styles.toolbarButtonAltText}>Demo unlock</Text>
               </Pressable>
             </View>
 
@@ -206,21 +218,29 @@ export function GhostMapApp() {
   );
 }
 
+function getLocalCalendarDay(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: "#f5efe3"
+    backgroundColor: "#f5efe3",
+    paddingTop: Platform.OS === "android" ? NativeStatusBar.currentHeight ?? 0 : 0
   },
   screen: {
     flex: 1
   },
   content: {
-    gap: 16,
+    gap: 12,
     padding: 16,
     paddingBottom: 30
   },
   header: {
-    minHeight: 66,
+    minHeight: 56,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -234,9 +254,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#20231e",
-    fontSize: 34,
+    fontSize: 30,
     fontWeight: "900",
-    lineHeight: 39
+    lineHeight: 35
   },
   counter: {
     minWidth: 68,
@@ -286,7 +306,7 @@ const styles = StyleSheet.create({
     gap: 10
   },
   toolbarButton: {
-    minHeight: 48,
+    minHeight: 44,
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
@@ -294,7 +314,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#315241"
   },
   toolbarButtonAlt: {
-    minHeight: 48,
+    minHeight: 44,
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
