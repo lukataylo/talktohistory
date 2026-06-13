@@ -415,15 +415,10 @@ export function useVoiceConversation(
         warmConvRef.current = conv;
         warmCharIdRef.current = character.id;
         // Status was already set to "pre-connected" in onConnect above.
-      } catch (err) {
+      } catch {
+        // Warmup failed — silently fall back to idle; start() will do a full connect.
         if (!abort.signal.aborted && mountedRef.current) {
-          if (
-            statusRef.current === "pre-connecting" ||
-            statusRef.current === "pre-connected"
-          ) {
-            // Silently fall back to idle — start() will handle it.
-            patch({ status: "idle" });
-          }
+          patch({ status: "idle" });
         }
       }
     },
