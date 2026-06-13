@@ -1,0 +1,28 @@
+{
+  "name": "@tth/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm --filter @tth/shared build",
+    "dev": "vite --host 0.0.0.0",
+    "prebuild": "pnpm --filter @tth/shared build",
+    "build": "tsc -p tsconfig.json && vite build",
+    "pretypecheck": "pnpm --filter @tth/shared build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@tth/shared": "workspace:*",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.6.0",
+    "vite": "^5.4.11"
+  }
+}

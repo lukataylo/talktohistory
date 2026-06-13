@@ -1,0 +1,21 @@
+{
+  "name": "talktohsitory",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Pokémon Go for ghost stories — PWA + Expo Go, ships same-day.",
+  "scripts": {
+    "build:shared": "pnpm --filter @tth/shared build",
+    "build:ai": "pnpm --filter @tth/ai build",
+    "build:db": "pnpm --filter @tth/db build",
+    "build:packages": "pnpm --filter './packages/*' -r build",
+    "dev:server": "pnpm --filter @tth/server dev",
+    "dev:web": "pnpm --filter @tth/web dev",
+    "dev:mobile": "pnpm --filter @tth/mobile start",
+    "dev": "pnpm build:packages && pnpm -r --parallel --filter './apps/*' dev",
+    "typecheck": "pnpm build:shared && pnpm -r typecheck"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@10.25.0"
+}

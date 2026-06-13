@@ -1,0 +1,17 @@
+{
+  "name": "TalkToHistory",
+  "short_name": "Ghost Map",
+  "description": "Unlock local ghost stories, challenges, and daily memory stickers.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f6ef",
+  "theme_color": "#f7f6ef",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

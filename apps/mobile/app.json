@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "Talk to History",
+    "slug": "talk-to-history",
+    "scheme": "talktohistory",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Talk to History uses your location to unlock nearby ghost stories."
+      }
+    },
+    "android": {
+      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+    }
+  }
+}

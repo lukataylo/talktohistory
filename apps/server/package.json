@@ -1,0 +1,26 @@
+{
+  "name": "@tth/server",
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm --filter @tth/shared build && pnpm --filter @tth/ai build && pnpm --filter @tth/db build",
+    "dev": "tsx watch src/index.ts",
+    "prebuild": "pnpm --filter @tth/shared build && pnpm --filter @tth/ai build && pnpm --filter @tth/db build",
+    "build": "tsc -p tsconfig.json",
+    "pretypecheck": "pnpm --filter @tth/shared build && pnpm --filter @tth/ai build && pnpm --filter @tth/db build",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.0",
+    "@tth/ai": "workspace:*",
+    "@tth/db": "workspace:*",
+    "@tth/shared": "workspace:*",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
