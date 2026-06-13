@@ -12,6 +12,7 @@ export const API_ROUTES = {
   tts: "/api/tts",
   sticker: "/api/sticker",
   memories: "/api/memories",
+  voiceToken: "/api/voice-token",
 } as const;
 
 // ── POST /api/story ─────────────────────────────────────────────────────────
@@ -59,6 +60,18 @@ export type StickerResponse = {
 export type MemoriesResponse = { memories: Memory[] };
 export type CreateMemoryRequest = Omit<Memory, "id" | "createdAt">;
 export type CreateMemoryResponse = { memory: Memory };
+
+// ── POST /api/voice-token ──────────────────────────────────────────────────────
+// Mints a short-lived ElevenLabs Conversational-AI session token. The token
+// embeds a signed WebSocket URL that the client uses to open a conversation.
+export type VoiceTokenRequest = {
+  /** Optional: inject a character-specific override (system prompt / voice). */
+  guideId?: string;
+};
+export type VoiceTokenResponse = {
+  /** JWT returned by ElevenLabs /v1/convai/conversation/token */
+  conversationToken: string;
+};
 
 export type ApiError = { error: string; detail?: string };
 

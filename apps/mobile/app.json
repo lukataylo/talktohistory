@@ -6,15 +6,32 @@
     "version": "0.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#f7f6ef",
     "assetBundlePatterns": ["**/*"],
+    "plugins": [
+      [
+        "react-native-maps",
+        {
+          "enableGoogleMaps": false
+        }
+      ]
+    ],
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "NearPast uses your location to unlock nearby place stories."
+        "NSLocationWhenInUseUsageDescription": "NearPast uses your location to unlock nearby place stories.",
+        "NSCameraUsageDescription": "NearPast uses your camera so you can take selfie photos for place challenges.",
+        "NSMicrophoneUsageDescription": "NearPast may use your microphone while capturing challenge media.",
+        "NSPhotoLibraryUsageDescription": "NearPast lets you pick a photo for place challenges."
       }
     },
     "android": {
-      "permissions": ["ACCESS_COARSE_LOCATION", "ACCESS_FINE_LOCATION"]
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "RECORD_AUDIO"
+      ]
     }
   }
 }

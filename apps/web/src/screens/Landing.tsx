@@ -35,16 +35,16 @@ export function Landing({
       </div>
 
       <div className="screen-card landing-card glass-panel">
-        <span className="screen-badge">
-          <PinGlyph small /> NearPast
+        <span className="screen-badge screen-badge--brand">
+          <img className="screen-badge-logo" src="/logo.svg" alt="NearPast" />
         </span>
         <h1 className="landing-title">
           History happens <em>where you're standing.</em>
         </h1>
         <p className="landing-lede">
-          Walk up to a real place and talk to the person who made it famous — their
-          voice, their story, right where it happened. Then keep a sticker of every
-          spot you unlock.
+          Walk up to a real place and hear its story — written for the person who
+          made it famous and narrated in a voice, right where it happened. Then keep
+          a sticker of every spot you unlock.
         </p>
 
         <ul className="landing-bullets">

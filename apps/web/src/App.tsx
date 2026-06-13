@@ -26,6 +26,7 @@ import {
   CHARACTER_SPOTS,
   ProximityEngine,
   getCharacter,
+  getTourByGuide,
   haversineMeters,
   type Challenge,
   type Fix,
@@ -35,6 +36,7 @@ import {
   type ProximityEvent,
   type Story,
   type TimeOfDay,
+  type Tour,
 } from "@tth/shared";
 import {
   createMapboxMapRenderer,
@@ -45,6 +47,8 @@ import {
 } from "./map/mapAdapter";
 import { fetchNarrationUrl, fetchStory } from "./api";
 import { makeStickerFromPhoto } from "./sticker";
+import { MemoryTab } from "./screens/MemoryTab";
+import { TourPlayer } from "./screens/TourPlayer";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement> & { size?: number; strokeWidth?: number }>;
 
@@ -124,6 +128,8 @@ export function App() {
   const [walkMeters, setWalkMeters] = useState(0);
   const [isListening, setIsListening] = useState(false);
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
+  const [showMemoryTab, setShowMemoryTab] = useState(false);
+  const [tourState, setTourState] = useState<{ open: boolean; tourId?: string }>({ open: false });
   const [mapboxAdapter, setMapboxAdapter] = useState<MapRenderer["adapter"] | null>(null);
   const [planView, setPlanView] = useState<PlanMapView>(PLAN_VIEW_DEFAULT);
   const [, setMapProjectionTick] = useState(0);
@@ -290,17 +296,26 @@ export function App() {
     setFixStatus(`Unlocked ${displaySpotTitle(spot)}`);
   }
 
-  function teleportToSpot(spot: GhostSpot) {
-    setFixStatus("Demo unlock injected");
-    unlockSpotNow(spot);
-    for (let i = 0; i < 3; i += 1) {
-      injectFix({
-        lat: spot.lat + i * 0.000004,
-        lng: spot.lng - i * 0.000004,
-        accuracy: 8,
-        synthetic: true,
-      });
-    }
+  function walkToSpot(spot: GhostSpot) {
+    const name = getCharacter(spot.id)?.name ?? displaySpotTitle(spot);
+    const start = position;
+    const startTime = performance.now();
+    const duration = 1100;
+    setFixStatus(`Walking to ${name}…`);
+    const step = (now: number) => {
+      const t = Math.min(1, (now - startTime) / duration);
+      const eased = t * (2 - t);
+      const lat = start.lat + (spot.lat - start.lat) * eased;
+      const lng = start.lng + (spot.lng - start.lng) * eased;
+      setPosition({ lat, lng });
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        setActiveIds((ids) => new Set(ids).add(spot.id));
+        setFixStatus(`Arrived at ${name}`);
+      }
+    };
+    requestAnimationFrame(step);
   }
 
   function locateUser() {
@@ -515,7 +530,32 @@ export function App() {
   const challengeComplete =
     currentChallenge?.type === "walk"
       ? walkMeters >= currentChallenge.targetMeters
-      : currentChallenge?.type === "selfie";
+      : currentChallenge?.type === "selfie"
+        ? Boolean(capturedPhotoUrl)
+        : false;
+
+  const selectedWithinRadius = selectedSpot
+    ? selectedDistance <= selectedSpot.unlockRadius
+    : false;
+  const selectedCanOpen = selectedUnlocked || selectedWithinRadius;
+
+  function handlePrimaryAction() {
+    if (!selectedSpot) return;
+    if (selectedCanOpen) {
+      beginStory(selectedSpot);
+    } else {
+      walkToSpot(selectedSpot);
+    }
+  }
+
+  // Re-projected every render (incl. the mapbox view tick) so collision offsets
+  // track the live map; cheap for a handful of pins.
+  const pinPlacement = declutterPoints(
+    spots.map((spot) => ({
+      spot,
+      point: adapter.project({ lat: spot.lat, lng: spot.lng }),
+    }))
+  );
 
   return (
     <main className="app-shell">
@@ -540,28 +580,16 @@ export function App() {
           <div className="map-label label-east">Dock Street</div>
         </div>
 
-        {spots.map((spot) => {
-          const point = adapter.project({ lat: spot.lat, lng: spot.lng });
-          const isActive = activeIds.has(spot.id);
-          const isSelected = selectedId === spot.id;
-          return (
-            <button
-              className={`place-pin ${isActive ? "is-active" : ""} ${
-                isSelected ? "is-selected" : ""
-              }`}
-              key={spot.id}
-              style={pointStyle(point)}
-              type="button"
-              onClick={() => selectSpot(spot)}
-              aria-label={`${displaySpotTitle(spot)} ${isActive ? "unlocked" : "locked"}`}
-            >
-              <span className="pin-halo" />
-              <span className="place-pin-glyph">
-                <PinIcon spot={spot} />
-              </span>
-            </button>
-          );
-        })}
+        {spots.map((spot) => (
+          <PlacePin
+            key={spot.id}
+            spot={spot}
+            point={pinPlacement.get(spot.id) ?? adapter.project({ lat: spot.lat, lng: spot.lng })}
+            isActive={activeIds.has(spot.id)}
+            isSelected={selectedId === spot.id}
+            onClick={() => selectSpot(spot)}
+          />
+        ))}
 
         <div className="user-dot" style={pointStyle(userPoint)} aria-hidden="true">
           <Navigation size={16} fill="currentColor" />
@@ -594,15 +622,21 @@ export function App() {
         ) : null}
 
         <header className="topbar glass-panel">
-          <div>
+          <div className="topbar-brand">
             <p className="eyebrow">Talk to who was here</p>
-            <h1>NearPast</h1>
+            <img className="topbar-logo" src="/logo.svg" alt="NearPast" />
           </div>
           <div className="status-cluster">
-            <span className="status-pill">
+            <button
+              className="status-pill"
+              type="button"
+              onClick={() => setShowMemoryTab(true)}
+              aria-label="Open today's memories"
+              title="Open today's memories"
+            >
               <Sparkles size={15} />
               {todayMemories.length} today
-            </span>
+            </button>
             <button className="icon-button" type="button" onClick={locateUser} aria-label="Locate me">
               <LocateFixed size={19} />
             </button>
@@ -628,13 +662,9 @@ export function App() {
             <span>{selectedUnlocked ? "Unlocked" : selectedSpot ? getCharacter(selectedSpot.id)?.era ?? "Walk up to unlock" : ""}</span>
           </div>
           <div className="dock-actions">
-            <button className="primary-button" type="button" onClick={() => selectedSpot && beginStory(selectedSpot)}>
-              <BookOpen size={17} />
-              {selectedUnlocked ? "Open story" : "Unlock spot"}
-            </button>
-            <button className="secondary-button" type="button" onClick={() => selectedSpot && teleportToSpot(selectedSpot)}>
-              <Sparkles size={17} />
-              Demo unlock
+            <button className="primary-button" type="button" onClick={handlePrimaryAction}>
+              {selectedCanOpen ? <BookOpen size={17} /> : <Footprints size={17} />}
+              {selectedCanOpen ? "Open story" : "Walk here ▸"}
             </button>
           </div>
           <p className="fix-status">{fixStatus}</p>
@@ -655,10 +685,10 @@ export function App() {
               ))
             ) : (
               <>
-                <div className="empty-sticker">?</div>
-                <div className="empty-sticker">+</div>
-                <div className="empty-sticker">+</div>
-                <div className="empty-sticker">+</div>
+                <div className="empty-sticker" aria-hidden="true" />
+                <div className="empty-sticker" aria-hidden="true" />
+                <div className="empty-sticker" aria-hidden="true" />
+                <div className="empty-sticker" aria-hidden="true" />
               </>
             )}
           </div>
@@ -690,23 +720,20 @@ export function App() {
           </button>
           <button
             type="button"
-            onClick={() => selectedSpot && teleportToSpot(selectedSpot)}
-            aria-label="Demo unlock"
-            title="Demo unlock"
+            onClick={() => setTourState({ open: true })}
+            aria-label="Guided tours"
+            title="Guided tours"
           >
-            <Sparkles size={21} />
+            <Footprints size={21} />
           </button>
           <button
             className="tapbar-primary"
             type="button"
-            onClick={() => selectedSpot && beginStory(selectedSpot)}
-            aria-label="Open story"
-            title="Open story"
+            onClick={() => setShowMemoryTab(true)}
+            aria-label="Today memories"
+            title="Today memories"
           >
-            <BookOpen size={22} />
-          </button>
-          <button type="button" onClick={() => setFixStatus("Today memories are open")} aria-label="Today memories" title="Today memories">
-            <Aperture size={21} />
+            <Aperture size={22} />
             {todayMemories.length ? <span>{todayMemories.length}</span> : null}
           </button>
         </nav>
@@ -729,9 +756,20 @@ export function App() {
             story={currentStory}
             capturedPhotoUrl={capturedPhotoUrl}
             walkMeters={walkMeters}
+            guideTour={getTourByGuide(currentStory.spotId)}
+            onStartTour={(tour: Tour) => {
+              stopNarration();
+              setStoryMode("map");
+              setCurrentStory(null);
+              setTourState({ open: true, tourId: tour.id });
+            }}
           />
         ) : null}
       </section>
+      {showMemoryTab ? <MemoryTab onClose={() => setShowMemoryTab(false)} /> : null}
+      {tourState.open ? (
+        <TourPlayer initialTourId={tourState.tourId} onClose={() => setTourState({ open: false })} />
+      ) : null}
     </main>
   );
 }
@@ -749,6 +787,8 @@ function StorySheet(props: {
   onSave: (kind: "selfie" | "walk") => void;
   story: Story;
   walkMeters: number;
+  guideTour?: Tour;
+  onStartTour: (tour: Tour) => void;
 }) {
   const challenge = props.story.challenge;
   const walkTarget = challenge.type === "walk" ? challenge.targetMeters : 0;
@@ -757,7 +797,14 @@ function StorySheet(props: {
     <div className="story-scrim">
       <section className="story-sheet glass-panel" aria-label="Story mode">
         <div className="story-art">
-          <BookOpen size={48} />
+          <img
+            className="story-art-bust"
+            src={`/pins/${props.story.spotId}.png`}
+            alt=""
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
           <span />
         </div>
         <div className="story-content">
@@ -776,6 +823,16 @@ function StorySheet(props: {
                   Start challenge
                 </button>
               </div>
+              {props.guideTour ? (
+                <button
+                  className="secondary-button tour-cta"
+                  type="button"
+                  onClick={() => props.onStartTour(props.guideTour!)}
+                >
+                  <Navigation size={17} />
+                  Start {props.guideTour.guideName}'s tour
+                </button>
+              ) : null}
             </>
           ) : (
             <>
@@ -930,6 +987,86 @@ function planViewStyle(view: PlanMapView) {
   return {
     transform: `translate(${view.offsetX}px, ${view.offsetY}px) scale(${view.zoom})`,
   };
+}
+
+function PlacePin({
+  spot,
+  point,
+  isActive,
+  isSelected,
+  onClick,
+}: {
+  spot: GhostSpot;
+  point: ScreenPoint;
+  isActive: boolean;
+  isSelected: boolean;
+  onClick: () => void;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+  return (
+    <button
+      className={`place-pin ${isActive ? "is-active" : ""} ${isSelected ? "is-selected" : ""}`}
+      style={{
+        left: `${point.x}px`,
+        top: `${point.y}px`,
+        zIndex: isSelected ? 44 : isActive ? 36 : 32,
+      }}
+      type="button"
+      onClick={onClick}
+      aria-label={`${displaySpotTitle(spot)} ${isActive ? "unlocked" : "locked"}`}
+    >
+      {imageFailed ? (
+        <>
+          <span className="pin-halo" />
+          <span className="place-pin-glyph">
+            <PinIcon spot={spot} />
+          </span>
+        </>
+      ) : (
+        <img
+          className="place-pin-bust"
+          src={`/pins/${spot.id}.png`}
+          alt=""
+          draggable={false}
+          onError={() => setImageFailed(true)}
+        />
+      )}
+    </button>
+  );
+}
+
+// Fan out pins whose projected screen points overlap so dense clusters (the Soho
+// figures sit within ~70-280m) stay individually tappable instead of stacking.
+function declutterPoints(
+  items: Array<{ spot: GhostSpot; point: ScreenPoint }>,
+  minDistance = 46
+): Map<string, ScreenPoint> {
+  const placed: ScreenPoint[] = [];
+  const result = new Map<string, ScreenPoint>();
+  items.forEach((item, index) => {
+    let x = item.point.x;
+    let y = item.point.y;
+    for (let pass = 0; pass < 16; pass += 1) {
+      let collided = false;
+      for (const other of placed) {
+        const dx = x - other.x;
+        const dy = y - other.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < minDistance) {
+          collided = true;
+          const angle = dist > 0.01 ? Math.atan2(dy, dx) : index * 2.39996;
+          const push = minDistance - dist + 0.5;
+          x += Math.cos(angle) * push;
+          y += Math.sin(angle) * push;
+        }
+      }
+      if (!collided) break;
+    }
+    const resolved = { x, y };
+    placed.push(resolved);
+    result.set(item.spot.id, resolved);
+  });
+  return result;
 }
 
 function PinIcon({ spot }: { spot: GhostSpot }) {

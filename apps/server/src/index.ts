@@ -16,6 +16,7 @@ import {
   type StoryRequest,
   type StoryResponse,
   type TtsRequest,
+  type VoiceTokenResponse,
 } from "@tth/shared";
 
 // Local dev convenience: load root .env.local if present (Railway injects real
@@ -99,6 +100,33 @@ app.post(API_ROUTES.memories, async (c) => {
     return c.json({ memory });
   } catch (err) {
     return routeError(c, err, "memories");
+  }
+});
+
+// POST /api/voice-token — mint a short-lived ElevenLabs ConvAI session token
+app.post(API_ROUTES.voiceToken, async (c) => {
+  const agentId = env.ELEVENLABS_AGENT_ID;
+  if (!agentId) {
+    return c.json<ApiError>(
+      { error: "ELEVENLABS_AGENT_ID is not configured", detail: "Set ELEVENLABS_AGENT_ID in .env.local or the platform env." },
+      503
+    );
+  }
+  const apiKey = env.ELEVENLABS_API_KEY;
+  if (!apiKey) {
+    return c.json<ApiError>({ error: "ELEVENLABS_API_KEY is not configured" }, 503);
+  }
+  try {
+    const url = `https://api.elevenlabs.io/v1/convai/conversation/token?agent_id=${encodeURIComponent(agentId)}`;
+    const resp = await fetch(url, { headers: { "xi-api-key": apiKey } });
+    if (!resp.ok) {
+      const text = await resp.text();
+      return c.json<ApiError>({ error: "ElevenLabs token request failed", detail: text }, 502);
+    }
+    const data = (await resp.json()) as { token: string };
+    return c.json<VoiceTokenResponse>({ conversationToken: data.token });
+  } catch (err) {
+    return routeError(c, err, "voice-token");
   }
 });
 

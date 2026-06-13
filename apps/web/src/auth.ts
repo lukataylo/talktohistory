@@ -4,8 +4,7 @@
 import { useCallback, useState } from "react";
 
 export type User = {
-  name: string;
-  email?: string;
+  email: string;
   guest?: boolean;
 };
 

@@ -19,7 +19,7 @@ export function AppShell() {
     return (
       <>
         <App />
-        <button className="signout-fab" type="button" onClick={signOut} title={`Sign out ${user.name}`}>
+        <button className="signout-fab" type="button" onClick={signOut} title={user.guest ? "Sign out" : `Sign out ${user.email}`}>
           Sign out
         </button>
       </>
@@ -33,7 +33,7 @@ export function AppShell() {
   return (
     <Landing
       onGetStarted={() => setRoute("login")}
-      onGuest={() => signIn({ name: "Guest", guest: true })}
+      onGuest={() => signIn({ email: "guest", guest: true })}
     />
   );
 }

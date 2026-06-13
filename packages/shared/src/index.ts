@@ -4,4 +4,6 @@ export * from "./proximity.js";
 export * from "./spots.js";
 export * from "./characters.js";
 export * from "./tour.js";
+export * from "./tours/index.js";
 export * from "./storyPrompt.js";
+export * from "./voices.js";

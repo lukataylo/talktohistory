@@ -1,9 +1,14 @@
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
   plugins: [react()],
+  // Read env from the monorepo root so the shared .env.local (VITE_MAPBOX_ACCESS_TOKEN,
+  // VITE_API_BASE, VITE_MOCK) reaches the web app.
+  envDir: fileURLToPath(new URL("../../", import.meta.url)),
   server: {
+    host: true, // bind LAN so an Expo Go phone (and other devices) can reach the dev server
     port: 5173,
   },
   preview: {
