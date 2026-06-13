@@ -8,17 +8,18 @@
 // ── How it fits together ──────────────────────────────────────────────────────
 //   browser (this file)                server (apps/server)            ElevenLabs
 //   ───────────────────                ────────────────────            ──────────
-//   1. start(character)
+//   1. warmup(character) [on sheet open]
 //   2. POST /api/voice-token ─────────▶ holds ELEVENLABS_API_KEY
-//                                       GET /v1/convai/conversation/token
-//                                       (or /get-signed-url)  ─────────▶ mints
-//                              ◀──────── { conversationToken }  ◀──────── token
-//   3. import("@elevenlabs/client")
-//   4. Conversation.startSession({ conversationToken, overrides, … })
-//                                                          WebRTC mic+audio ⇄ agent
+//                                       GET /v1/convai/conversation/token  ──▶
+//                              ◀──────── { conversationToken }             ◀──
+//   3. @elevenlabs/client (cached after first load)
+//   4. Conversation.startSession({ conversationToken, overrides, … }) — WebRTC
+//      → volume=0, sessionMode="warmup"  (agent greets silently)
+//   5. [StorySheet shows "Ready — tap to speak"]
 //
-// The ElevenLabs API key NEVER touches the browser. The client only ever
-// receives a short-lived token / signed URL minted server-side.
+//   6. start(character) [user taps Talk]
+//      → fast path: setVolume(1), sessionMode="live" — INSTANT (<50 ms)
+//      → slow path fallback (warmup failed/mismatched): full connect (~0.7-1.5 s)
 //
 // ── Build-safety guard ────────────────────────────────────────────────────────
 // `@elevenlabs/client` is NOT yet a dependency of @tth/web. To keep
@@ -31,7 +32,23 @@
 // When you install the dep and wire this up, no shim needs removing — the same
 // code type-checks and runs. See voiceConversation.README.md for the steps.
 //
-// This module is intentionally NOT imported by App.tsx yet.
+// ── Instant-voice additions (feat/instant-voice) ──────────────────────────────
+//   • warmup(character) — call on StorySheet mount to PRE-CONNECT the WebRTC
+//     session (muted) so clicking Talk activates in <50 ms instead of ~1-2 s.
+//   • New VoiceStatus values: "pre-connecting" | "pre-connected"
+//   • sessionModeRef: callbacks shared between warmup and live phases; flipping
+//     sessionModeRef.current = "live" re-activates transcript / isSpeaking.
+//   • clientModuleRef: @elevenlabs/client cached after first dynamic import.
+//   • statusRef: synchronously readable status for stale callbacks.
+//
+// ── ElevenLabs agent settings for instant feel ───────────────────────────────
+//   Dashboard → Agent → Advanced:
+//     • TTS model: eleven_flash_v2_5  (~75 ms vs ~250 ms for turbo)
+//     • Turn eagerness: eager          (faster endpointing; see conversation-flow docs)
+//     • Silence timeout: 1–2 s         (don't wait long after user finishes)
+//     • Enable "interruption" in Client Events for barge-in support
+//   Dashboard → Agent → Security → Overrides:
+//     • Allow: system prompt, first message, language, voice
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -95,12 +112,21 @@ type ElevenLabsClientModule = {
   };
 };
 
-/** Lifecycle of a voice conversation, surfaced to the UI. */
+/**
+ * Lifecycle of a voice conversation, surfaced to the UI.
+ *
+ * Normal (slow) path:  idle → requesting-token → connecting → connected → disconnected
+ * Fast (pre-warm) path: idle → pre-connecting → pre-connected → connected → disconnected
+ *
+ * The "pre-*" states are transparent to the user until they click Talk.
+ */
 export type VoiceStatus =
   | "idle"
-  | "requesting-token"
-  | "connecting"
-  | "connected"
+  | "pre-connecting"   // background: fetching token + WebRTC handshake (muted)
+  | "pre-connected"    // background: session live + muted; Talk click = instant
+  | "requesting-token" // user-triggered slow path: fetching session token
+  | "connecting"       // user-triggered slow path: WebRTC handshake
+  | "connected"        // live and fully active
   | "disconnected"
   | "error";
 
@@ -114,7 +140,14 @@ export type VoiceConversationState = {
 };
 
 export type VoiceConversationControls = VoiceConversationState & {
-  /** Begin a spoken conversation with `character`. Prompts for mic permission. */
+  /**
+   * Pre-warm the ElevenLabs WebRTC session when the story sheet opens.
+   * Fetches a token, loads @elevenlabs/client, and establishes the WebRTC
+   * connection (with muted audio) so the next call to `start` is near-instant.
+   * Safe to call multiple times — idempotent if already warming/warm.
+   */
+  warmup: (character: Character) => Promise<void>;
+  /** Begin a spoken conversation with `character`. Near-instant if warmup() was called first. */
   start: (character: Character) => Promise<void>;
   /** End the conversation and release the mic. */
   stop: () => Promise<void>;
@@ -232,12 +265,12 @@ function toSessionAuth(
 // React hook — the main entry point for the UI.
 //
 //   const voice = useVoiceConversation();
-//   <button onClick={() => voice.start(karlMarx)}>Talk to Marx</button>
-//   <button onClick={voice.stop} disabled={voice.status !== "connected"}>Stop</button>
-//
-// (Not wired into App.tsx yet — see voiceConversation.README.md for remaining
-// steps to make it live: create the dashboard agent, add /api/voice-token,
-// install @elevenlabs/client, then mount this hook.)
+//   // In a useEffect on mount:
+//   useEffect(() => { void voice.warmup(character); }, []);
+//   // Talk button:
+//   <button onClick={() => voice.status === "connected" ? voice.stop() : voice.start(character)}>
+//     {voice.status === "pre-connected" ? "Talk (Ready!)" : "Talk"}
+//   </button>
 // ─────────────────────────────────────────────────────────────────────────────
 export function useVoiceConversation(
   options?: {
@@ -247,33 +280,220 @@ export function useVoiceConversation(
 ): VoiceConversationControls {
   const [state, setState] = useState<VoiceConversationState>(INITIAL_STATE);
 
-  // Mutable handles that must survive re-renders.
+  // ── Mutable handles that must survive re-renders ────────────────────────────
+  // Live session (user-activated)
   const convRef = useRef<ElevenLabsConversation | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Pre-warm session (background, muted until user clicks Talk)
+  const warmConvRef = useRef<ElevenLabsConversation | null>(null);
+  const warmCharIdRef = useRef<string | null>(null);
+  const warmAbortRef = useRef<AbortController | null>(null);
+  // Cached @elevenlabs/client module (avoids re-importing after first load)
+  const clientModuleRef = useRef<ElevenLabsClientModule | null>(null);
+  // "warmup" = callbacks no-op; "live" = callbacks update state
+  const sessionModeRef = useRef<"warmup" | "live">("warmup");
+  // Synchronously readable status (callbacks hold stale closure over `state`)
+  const statusRef = useRef<VoiceStatus>("idle");
+
   const mountedRef = useRef(true);
 
+  // patch: thin wrapper that keeps statusRef in sync synchronously, which is
+  // critical because ElevenLabs callbacks can fire multiple times before React
+  // has flushed the next render.
   const patch = useCallback((p: Partial<VoiceConversationState>) => {
+    if (p.status !== undefined) statusRef.current = p.status;
     if (mountedRef.current) setState((s) => ({ ...s, ...p }));
   }, []);
 
+  // ── warmup ─────────────────────────────────────────────────────────────────
+  // Starts the ElevenLabs WebRTC session in the background (volume = 0) so that
+  // clicking Talk is near-instant.  The agent's first-message greeting plays
+  // silently; when the user activates the session, callbacks flip to "live" mode
+  // and the transcript / isSpeaking state becomes active.
+  const warmup = useCallback(
+    async (character: Character) => {
+      // Idempotent: don't double-warm, and don't clobber a live session.
+      if (convRef.current) return;
+      if (warmConvRef.current || warmCharIdRef.current === character.id) return;
+      const alreadyPrepping =
+        statusRef.current === "pre-connecting" ||
+        statusRef.current === "pre-connected";
+      if (alreadyPrepping) return;
+      if (
+        statusRef.current !== "idle" &&
+        statusRef.current !== "disconnected" &&
+        statusRef.current !== "error"
+      )
+        return;
+
+      patch({ status: "pre-connecting", error: null });
+      sessionModeRef.current = "warmup";
+
+      const abort = new AbortController();
+      warmAbortRef.current = abort;
+
+      try {
+        // Load module + fetch token in parallel — both are needed before WebRTC.
+        const [clientModule, token] = await Promise.all([
+          clientModuleRef.current
+            ? Promise.resolve(clientModuleRef.current)
+            : loadElevenLabsClient().then((m) => {
+                clientModuleRef.current = m;
+                return m;
+              }),
+          fetchVoiceToken(character.id, abort.signal),
+        ]);
+
+        if (abort.signal.aborted || !mountedRef.current) return;
+
+        const auth = toSessionAuth(token);
+        const voiceId = options?.voiceIdFor?.(character);
+
+        // Start the WebRTC session with shared callbacks controlled by sessionModeRef.
+        const conv = await clientModule.Conversation.startSession({
+          ...auth,
+          overrides: buildOverrides(character, voiceId),
+          dynamicVariables: {
+            character_name: character.name,
+            era: character.era,
+            voice_hint: character.voiceHint,
+          },
+          onConnect: ({ conversationId }) => {
+            if (abort.signal.aborted || !mountedRef.current) return;
+            if (
+              statusRef.current === "pre-connecting" ||
+              statusRef.current === "connecting"
+            ) {
+              patch({ status: "pre-connected", conversationId, error: null });
+            }
+          },
+          onDisconnect: () => {
+            const wasPre =
+              statusRef.current === "pre-connecting" ||
+              statusRef.current === "pre-connected";
+            warmConvRef.current = null;
+            warmCharIdRef.current = null;
+            if (wasPre) patch({ status: "idle", isSpeaking: false });
+            // If already "connected" (fast-path activated), onDisconnect from the
+            // live session fires through convRef's callbacks, not here.
+          },
+          onModeChange: ({ mode }) => {
+            // Only propagate to state when the session has been activated by the user.
+            if (sessionModeRef.current === "live") {
+              patch({ isSpeaking: mode === "speaking" });
+            }
+          },
+          onMessage: (msg) => {
+            if (sessionModeRef.current === "live") {
+              setState((s) => ({ ...s, transcript: [...s.transcript, msg] }));
+            }
+          },
+          onError: (message) => {
+            warmConvRef.current = null;
+            warmCharIdRef.current = null;
+            if (
+              statusRef.current === "pre-connecting" ||
+              statusRef.current === "pre-connected"
+            ) {
+              // Silently fall back to idle — start() will retry.
+              patch({ status: "idle" });
+            } else if (sessionModeRef.current === "live") {
+              patch({ status: "error", error: message });
+            }
+          },
+        });
+
+        // startSession() resolved — check again in case we were aborted during the
+        // WebRTC handshake (which can take several hundred ms).
+        if (abort.signal.aborted || !mountedRef.current) {
+          await conv.endSession().catch(() => {});
+          return;
+        }
+
+        // Mute audio so the agent's greeting is inaudible during pre-warm.
+        conv.setVolume({ volume: 0 });
+        warmConvRef.current = conv;
+        warmCharIdRef.current = character.id;
+        // Status was already set to "pre-connected" in onConnect above.
+      } catch (err) {
+        if (!abort.signal.aborted && mountedRef.current) {
+          if (
+            statusRef.current === "pre-connecting" ||
+            statusRef.current === "pre-connected"
+          ) {
+            // Silently fall back to idle — start() will handle it.
+            patch({ status: "idle" });
+          }
+        }
+      }
+    },
+    [options, patch],
+  );
+
+  // ── start ───────────────────────────────────────────────────────────────────
   const start = useCallback(
     async (character: Character) => {
       // Guard against double-starts.
       if (convRef.current) return;
 
+      // ── FAST PATH: use the pre-warmed session ──────────────────────────────
+      if (
+        warmConvRef.current &&
+        warmCharIdRef.current === character.id &&
+        statusRef.current === "pre-connected"
+      ) {
+        const conv = warmConvRef.current;
+        warmConvRef.current = null;
+        warmCharIdRef.current = null;
+        convRef.current = conv;
+
+        // Flip callbacks to live mode and restore audio.
+        sessionModeRef.current = "live";
+        conv.setVolume({ volume: 1 });
+
+        // The agent's onDisconnect/onError are now handled by the shared callbacks
+        // above (which check sessionModeRef.current === "live").
+        patch({ status: "connected", error: null });
+        return;
+      }
+
+      // ── SLOW PATH (warmup unavailable / different character / failed) ────────
+      // Abort any in-flight warmup so it doesn't clobber our state.
+      warmAbortRef.current?.abort();
+      warmAbortRef.current = null;
+      if (warmConvRef.current) {
+        await warmConvRef.current.endSession().catch(() => {});
+        warmConvRef.current = null;
+        warmCharIdRef.current = null;
+      }
+
       const abort = new AbortController();
       abortRef.current = abort;
       setState({ ...INITIAL_STATE, status: "requesting-token" });
+      statusRef.current = "requesting-token";
 
       try {
-        const token = await fetchVoiceToken(character.id, abort.signal);
-        const auth = toSessionAuth(token);
-        const { Conversation } = await loadElevenLabsClient();
+        // clientModuleRef may already be populated if warmup ran (even if it failed
+        // at the WebRTC stage), so we skip the dynamic import in that case.
+        const [clientModule, token] = await Promise.all([
+          clientModuleRef.current
+            ? Promise.resolve(clientModuleRef.current)
+            : loadElevenLabsClient().then((m) => {
+                clientModuleRef.current = m;
+                return m;
+              }),
+          fetchVoiceToken(character.id, abort.signal),
+        ]);
 
+        if (abort.signal.aborted || !mountedRef.current) return;
+
+        const auth = toSessionAuth(token);
         patch({ status: "connecting" });
 
         const voiceId = options?.voiceIdFor?.(character);
-        const conversation = await Conversation.startSession({
+        sessionModeRef.current = "live";
+
+        const conversation = await clientModule.Conversation.startSession({
           ...auth,
           overrides: buildOverrides(character, voiceId),
           dynamicVariables: {
@@ -305,7 +525,19 @@ export function useVoiceConversation(
     [options, patch],
   );
 
+  // ── stop ────────────────────────────────────────────────────────────────────
   const stop = useCallback(async () => {
+    // Abort any in-flight warmup.
+    warmAbortRef.current?.abort();
+    warmAbortRef.current = null;
+    const warmConv = warmConvRef.current;
+    warmConvRef.current = null;
+    warmCharIdRef.current = null;
+    if (warmConv) {
+      await warmConv.endSession().catch(() => {});
+    }
+
+    // End live session.
     abortRef.current?.abort();
     abortRef.current = null;
     const conv = convRef.current;
@@ -324,16 +556,19 @@ export function useVoiceConversation(
     convRef.current?.setVolume({ volume: Math.max(0, Math.min(1, volume)) });
   }, []);
 
-  // Tear down the session if the component unmounts mid-conversation.
+  // Tear down ALL sessions if the component unmounts mid-conversation.
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      warmAbortRef.current?.abort();
+      void warmConvRef.current?.endSession().catch(() => {});
+      warmConvRef.current = null;
       abortRef.current?.abort();
       void convRef.current?.endSession().catch(() => {});
       convRef.current = null;
     };
   }, []);
 
-  return { ...state, start, stop, setVolume };
+  return { ...state, warmup, start, stop, setVolume };
 }
