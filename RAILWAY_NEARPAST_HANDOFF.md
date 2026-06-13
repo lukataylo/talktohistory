@@ -19,6 +19,7 @@ Services:
 - `web`
   - Service ID: `155c3fca-c798-4b4f-8745-83362af060d3`
   - Railway URL: `https://web-production-a3baa.up.railway.app`
+  - Custom domain attached in Railway: `https://nearpast.com`
   - Build: `pnpm --filter @tth/web build`
   - Start: `pnpm --filter @tth/web exec vite preview --host 0.0.0.0 --port $PORT`
   - Health: `/`
@@ -31,7 +32,18 @@ Services:
 
 The project is linked locally in this directory.
 
-No deployments are currently active. The generated Railway domains are reserved/configured, but they return Railway's fallback `404 Application not found` until `api` and `web` are deployed successfully.
+Stop point for the next agent:
+
+- `api` deployed successfully with deployment ID `d3067000-34cb-400f-b594-4e3432feed71`.
+- API health check passed at `https://api-production-5c12.up.railway.app/api/health`.
+- `web` build completed successfully, but the Railway deployment failed its health check.
+- Failed web deployment ID: `ac2659b3-1133-4e29-a518-0a69630e5197`.
+- Web container logs showed Vite preview listening on port `8080`.
+- Railway healthcheck attempts to `/` returned `service unavailable` until the deployment failed.
+- `https://web-production-a3baa.up.railway.app` returned Railway fallback `404 Application not found` after the failed deployment.
+- `nearpast.com` is attached to the `web` service in Railway with target port `8080`, but local DNS lookup did not resolve yet.
+
+Do not assume the web service is live until a fresh deployment succeeds and the URL returns the app.
 
 ## Variables
 
@@ -55,13 +67,26 @@ No deployments are currently active. The generated Railway domains are reserved/
 
 ## Known Blockers
 
-1. Railway custom domain creation returned:
+1. Web deployment healthcheck failed even though the runtime container printed:
 
    ```text
-   Unauthorized. Please run `railway login` again.
+   Local:   http://localhost:8080/
+   Network: http://10.x.x.x:8080/
    ```
 
-   Generated Railway domains are configured, but `nearpast.com` and `api.nearpast.com` are not attached yet.
+   The current deploy config is:
+
+   ```text
+   startCommand: pnpm --filter @tth/web exec vite preview --host 0.0.0.0 --port $PORT
+   healthcheckPath: /
+   healthcheckTimeout: 300
+   ```
+
+   Suggested fixes to try:
+
+   - Replace Vite preview with a tiny static server that clearly binds to `$PORT`.
+   - Or remove/adjust the Railway healthcheck in the dashboard if the CLI does not accept the patch.
+   - Re-deploy only `web` after changing the service config.
 
 2. Railway source configuration points at `https://github.com/lukataylo/talktohistory`, but Railway reported:
 
@@ -70,6 +95,13 @@ No deployments are currently active. The generated Railway domains are reserved/
    ```
 
    Until the Railway GitHub app is installed for that repo, use `railway up` from the local checkout or connect the repo in the Railway dashboard.
+
+3. Domain state:
+
+   - `nearpast.com` is attached to the `web` service in Railway.
+   - `www.nearpast.com` is not confirmed attached.
+   - `api.nearpast.com` is not confirmed attached.
+   - `nearpast.com` did not resolve during local `curl` verification, so registrar DNS still needs to be configured or propagated.
 
 ## Next-Agent Instructions
 
@@ -93,10 +125,11 @@ No deployments are currently active. The generated Railway domains are reserved/
    railway environment config --json
    ```
 
-3. Attach custom domains:
+3. Confirm or attach custom domains:
 
    ```bash
-   railway domain nearpast.com --service web --json
+   railway domain --service web --json
+   railway domain nearpast.com --service web --port 8080 --json
    railway domain www.nearpast.com --service web --json
    railway domain api.nearpast.com --service api --json
    ```
@@ -124,24 +157,52 @@ No deployments are currently active. The generated Railway domains are reserved/
    railway variable set AI_TTS_PROVIDER=eleven --service api --environment production
    ```
 
-7. Deploy or redeploy from this checkout:
+7. Fix and redeploy `web`.
+
+   One option is to add a production static server dependency/script, then update Railway start command:
 
    ```bash
-   railway up --service api --environment production --detach -m "Deploy NearPast API"
+   pnpm --filter @tth/web add serve
+   ```
+
+   Example package script:
+
+   ```json
+   {
+     "scripts": {
+       "start": "serve -s dist -l tcp://0.0.0.0:${PORT:-8080}"
+     }
+   }
+   ```
+
+   Then configure Railway:
+
+   ```bash
+   railway environment edit \
+     --environment production \
+     --service-config web deploy.startCommand "pnpm --filter @tth/web start" \
+     --message "Use static web server for Railway"
+   ```
+
+   If the healthcheck remains blocked, change or remove it in the Railway dashboard.
+
+8. Deploy or redeploy from this checkout:
+
+   ```bash
    railway up --service web --environment production --detach -m "Deploy NearPast web"
    ```
 
-8. Verify:
+   API is already live; redeploy it only if API code or variables change.
+
+9. Verify:
 
    ```bash
    curl https://api-production-5c12.up.railway.app/api/health
-   curl https://api.nearpast.com/api/health
+   curl -I https://web-production-a3baa.up.railway.app
+   curl -I https://nearpast.com
    ```
 
-   Then open:
-
-   - `https://web-production-a3baa.up.railway.app`
-   - `https://nearpast.com`
+   After `api.nearpast.com` is attached and DNS resolves, also verify `https://api.nearpast.com/api/health`.
 
 ## Repo Docs To Update
 
