@@ -1,39 +1,45 @@
-// Top-level router/gate: Landing -> Login -> App (the map experience).
-// Auth state decides whether the map is shown. Sub-agents should NOT edit this
-// file; it is the integration seam owned by the lead.
+// Top-level shell: drops the user STRAIGHT into the map (App) — no login gate.
+// Sign-up is OPTIONAL: a small "Sign in" affordance opens the magic-link screen
+// on demand; until then the user explores anonymously.
 import { useState } from "react";
 import { useAuth, type User } from "./auth";
-import { Landing } from "./screens/Landing";
 import { Login } from "./screens/Login";
 import { App } from "./App";
 
-type Route = "landing" | "login";
-
 export function AppShell() {
   const { user, signIn, signOut } = useAuth();
-  const [route, setRoute] = useState<Route>("landing");
+  const [showLogin, setShowLogin] = useState(false);
 
-  if (user) {
-    // App is owned/edited by another track; render it untouched and overlay a
-    // minimal sign-out so we don't modify App.tsx (avoids a concurrent-edit collision).
+  // Optional auth screen — only shown if the user chooses to sign in.
+  if (showLogin && !user) {
     return (
-      <>
-        <App />
-        <button className="signout-fab" type="button" onClick={signOut} title={user.guest ? "Sign out" : `Sign out ${user.email}`}>
-          Sign out
-        </button>
-      </>
+      <Login
+        onAuthed={(u: User) => {
+          signIn(u);
+          setShowLogin(false);
+        }}
+        onBack={() => setShowLogin(false)}
+      />
     );
   }
 
-  if (route === "login") {
-    return <Login onAuthed={(u: User) => signIn(u)} onBack={() => setRoute("landing")} />;
-  }
-
   return (
-    <Landing
-      onGetStarted={() => setRoute("login")}
-      onGuest={() => signIn({ email: "guest", guest: true })}
-    />
+    <>
+      <App />
+      {user && !user.guest ? (
+        <button
+          className="signout-fab"
+          type="button"
+          onClick={signOut}
+          title={`Sign out ${user.email}`}
+        >
+          Sign out
+        </button>
+      ) : (
+        <button className="signout-fab" type="button" onClick={() => setShowLogin(true)}>
+          Sign in
+        </button>
+      )}
+    </>
   );
 }
