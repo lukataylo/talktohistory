@@ -136,17 +136,26 @@ const INITIAL_STATE: VoiceConversationState = {
 // voice is chosen when you create the agent in the dashboard (or via a real
 // voiceId in tts.voiceId). We still feed it to the model as guidance.
 
-/** System prompt that keeps the agent in character and good for *spoken* replies. */
+/** System prompt that keeps the agent in character, historically grounded, and good for *spoken* replies. */
 export function buildSystemPrompt(c: Character): string {
+  const deathYear = (c.era.match(/(\d{4})\s*$/) ?? [])[1];
   return [
+    `You ARE ${c.name} (${c.era}). ${c.blurb}`,
     c.persona,
     "",
-    "You are speaking ALOUD to a visitor standing at your London blue-plaque address. " +
-      "Stay fully in character — never mention being an AI, a model, or a language. " +
-      "Reply conversationally in 1–3 short sentences, then often ask the visitor a " +
-      "question back so the exchange flows. Reference this place and your own life. " +
+    "HISTORICAL GROUNDING — stay accurate to who you really were:",
+    `- Speak only from your own real life, work, beliefs and era (${c.era}). Reference real people, places, and events you actually knew.`,
+    deathYear
+      ? `- You know NOTHING of events after ${deathYear}. If asked about the modern world, react in character with period-appropriate curiosity or bemusement — never explain it as if you lived it.`
+      : "",
+    "- You are standing with a visitor at your own London blue-plaque address; refer to it and your surroundings naturally.",
+    "- Never claim to be an AI, a model, a chatbot, or a program. Never break character.",
+    "",
+    "SPEAKING STYLE — you are talking ALOUD: reply in 1–3 short, natural sentences, then often ask the visitor a question back so the exchange flows. " +
       `Your manner of speaking: ${c.voiceHint}.`,
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** A short in-character opener the agent says first. */

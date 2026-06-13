@@ -24,6 +24,7 @@ import type { ComponentType, PointerEvent as ReactPointerEvent, SVGProps } from 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CHARACTER_SPOTS,
+  VOICE_BY_GUIDE,
   ProximityEngine,
   getCharacter,
   getTourByGuide,
@@ -47,6 +48,7 @@ import {
 } from "./map/mapAdapter";
 import { fetchNarrationUrl, fetchStory } from "./api";
 import { makeStickerFromPhoto } from "./sticker";
+import { useVoiceConversation } from "./voiceConversation";
 import { MemoryTab } from "./screens/MemoryTab";
 import { TourPlayer } from "./screens/TourPlayer";
 
@@ -623,7 +625,6 @@ export function App() {
 
         <header className="topbar glass-panel">
           <div className="topbar-brand">
-            <p className="eyebrow">Talk to who was here</p>
             <img className="topbar-logo" src="/logo.svg" alt="NearPast" />
           </div>
           <div className="status-cluster">
@@ -792,6 +793,12 @@ function StorySheet(props: {
 }) {
   const challenge = props.story.challenge;
   const walkTarget = challenge.type === "walk" ? challenge.targetMeters : 0;
+  const character = getCharacter(props.story.spotId);
+  const voice = useVoiceConversation({ voiceIdFor: (c) => VOICE_BY_GUIDE[c.id] });
+  const convoLive =
+    voice.status === "requesting-token" ||
+    voice.status === "connecting" ||
+    voice.status === "connected";
 
   return (
     <div className="story-scrim">
@@ -832,6 +839,41 @@ function StorySheet(props: {
                   <Navigation size={17} />
                   Start {props.guideTour.guideName}'s tour
                 </button>
+              ) : null}
+              {character ? (
+                <button
+                  className={`primary-button talk-cta ${convoLive ? "is-live" : ""}`}
+                  type="button"
+                  onClick={() => (convoLive ? voice.stop() : voice.start(character))}
+                >
+                  <Volume2 size={17} />
+                  {convoLive ? `End conversation` : `Talk to ${character.name.split(" ")[0]}`}
+                </button>
+              ) : null}
+              {voice.status !== "idle" ? (
+                <div className={`voice-convo ${voice.isSpeaking ? "is-speaking" : ""}`}>
+                  <p className="voice-status">
+                    {voice.status === "requesting-token" || voice.status === "connecting"
+                      ? "Connecting…"
+                      : voice.status === "error"
+                        ? `Couldn't connect: ${voice.error ?? "unknown error"}`
+                        : voice.status === "connected"
+                          ? voice.isSpeaking
+                            ? `${character?.name.split(" ")[0]} is speaking…`
+                            : "Listening — speak now"
+                          : "Conversation ended"}
+                  </p>
+                  {voice.transcript.length ? (
+                    <div className="voice-transcript">
+                      {voice.transcript.slice(-4).map((m, i) => (
+                        <p key={i} className={m.source === "user" ? "vt-user" : "vt-agent"}>
+                          <strong>{m.source === "user" ? "You" : character?.name.split(" ")[0]}:</strong>{" "}
+                          {m.message}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
             </>
           ) : (
