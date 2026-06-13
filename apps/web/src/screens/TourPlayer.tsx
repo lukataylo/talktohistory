@@ -96,6 +96,59 @@ function IconWalk() {
   );
 }
 
+// ── Guide avatar with initials fallback ──────────────────────────────────────
+// Warm amber palette — one colour per guide, stable via guide-ID char hash.
+const AVATAR_BG_PALETTE = [
+  "#b85e28", "#7a4c38", "#3d6b8a", "#6b4fa0",
+  "#2e7a4a", "#8a3a3a", "#5a5a20", "#2a6b6b",
+];
+
+function getAvatarBg(guideId: string): string {
+  const hash = guideId
+    .split("")
+    .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return AVATAR_BG_PALETTE[hash % AVATAR_BG_PALETTE.length];
+}
+
+function guideInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join("");
+}
+
+/**
+ * Renders /pins/<guideId>.png when available.
+ * On error, falls back to the guide's initials in a warm-coloured circle so
+ * no card ever shows a blank avatar box.
+ */
+function GuideAvatar({ guideId, guideName }: { guideId: string; guideName: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return (
+      <span
+        className="tp-guide-avatar-initials"
+        style={{ background: getAvatarBg(guideId) }}
+        aria-hidden="true"
+      >
+        {guideInitials(guideName)}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={`/pins/${guideId}.png`}
+      alt=""
+      draggable={false}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
 function formatDistance(m: number): string {
@@ -234,14 +287,7 @@ export function TourPlayer({
                   <button className="tp-card glass-panel" type="button" onClick={() => openTour(t.id)}>
                     <div className="tp-card-head">
                       <span className="tp-guide-avatar">
-                        <img
-                          src={`/pins/${t.guideId}.png`}
-                          alt=""
-                          draggable={false}
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).style.display = "none";
-                          }}
-                        />
+                        <GuideAvatar guideId={t.guideId} guideName={t.guideName} />
                       </span>
                       <div className="tp-card-titles">
                         <h2>{t.title}</h2>
