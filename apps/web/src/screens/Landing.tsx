@@ -1,11 +1,12 @@
-// Landing screen. Visuals live in screens.css.
-// Contract: render a hero and call onGetStarted / onGuest. Keep these props stable.
+// Landing screen — the app's entry point. No login gate: the primary CTA drops
+// straight into the map. Sign-in is optional (onSignIn opens the magic-link
+// screen on demand). Visuals live in screens.css.
 export function Landing({
-  onGetStarted,
-  onGuest,
+  onEnter,
+  onSignIn,
 }: {
-  onGetStarted: () => void;
-  onGuest: () => void;
+  onEnter: () => void;
+  onSignIn: () => void;
 }) {
   return (
     <main className="screen landing">
@@ -60,13 +61,15 @@ export function Landing({
         </ul>
 
         <div className="screen-actions">
-          <button className="primary-button" type="button" onClick={onGetStarted}>
-            Get started
+          <button className="primary-button" type="button" onClick={onEnter}>
+            Start exploring
           </button>
-          <button className="secondary-button" type="button" onClick={onGuest}>
-            Explore as guest
-          </button>
+          <p className="landing-no-account">No account needed — jump straight to the map.</p>
         </div>
+
+        <button className="landing-signin" type="button" onClick={onSignIn}>
+          Have an account? <strong>Sign in</strong>
+        </button>
       </div>
     </main>
   );
