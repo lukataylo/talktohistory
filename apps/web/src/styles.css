@@ -1130,3 +1130,29 @@ h2 {
     min-height: 118px;
   }
 }
+
+/* Pin hover name label (replaces the names list) */
+.place-pin .pin-name {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  white-space: nowrap;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(25, 24, 22, 0.92);
+  color: #fffaf0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+  z-index: 60;
+}
+.place-pin:hover .pin-name,
+.place-pin:focus-visible .pin-name,
+.place-pin.is-selected .pin-name {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}

@@ -122,7 +122,7 @@ export function App() {
   const [size, setSize] = useState({ width: 900, height: 720 });
   const [position, setPosition] = useState<LatLng>(DEMO_START);
   const [activeIds, setActiveIds] = useState<Set<string>>(new Set());
-  const [selectedId, setSelectedId] = useState(spots[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState("");
   const [storyMode, setStoryMode] = useState<StoryMode>("map");
   const [currentStory, setCurrentStory] = useState<Story | null>(null);
   const [memories, setMemories] = useState<Memory[]>(() => readMemories());
@@ -648,6 +648,7 @@ export function App() {
           </div>
         </header>
 
+        {selectedId ? (
         <aside className="spot-dock glass-panel">
           <div className="dock-heading">
             <span className="dock-icon">
@@ -674,7 +675,9 @@ export function App() {
           </div>
           <p className="fix-status">{fixStatus}</p>
         </aside>
+        ) : null}
 
+        {memories.length > 0 ? (
         <aside className="memory-dock glass-panel" aria-label="Daily memory stickers">
           <div className="memory-head">
             <div>
@@ -703,21 +706,7 @@ export function App() {
               : "Finish a story challenge to stamp today."}
           </p>
         </aside>
-
-        <nav className="pin-list glass-panel" aria-label="Favorite spots">
-          {sortedSpots.map(({ spot, distance, active }) => (
-            <button
-              key={spot.id}
-              className={selectedId === spot.id ? "is-selected" : ""}
-              type="button"
-              onClick={() => selectSpot(spot)}
-            >
-              <span className={active ? "pin-dot active" : "pin-dot"} />
-              <span>{displaySpotTitle(spot)}</span>
-              <strong>{Math.round(distance)}m</strong>
-            </button>
-          ))}
-        </nav>
+        ) : null}
 
         <nav className="floating-tapbar glass-panel" aria-label="Quick actions">
           <button type="button" onClick={locateUser} aria-label="Locate me" title="Locate me">
@@ -800,19 +789,8 @@ function StorySheet(props: {
   const character = getCharacter(props.story.spotId);
   const voice = useVoiceConversation({ voiceIdFor: (c) => VOICE_BY_GUIDE[c.id] });
 
-  // Pre-warm the ElevenLabs WebRTC session the moment the sheet opens so
-  // tapping "Talk" is near-instant instead of waiting ~1-2 s.
-  // This fires inside a user-gesture (the "Open story" tap) so mic permission
-  // can be requested without a secondary prompt.
-  useEffect(() => {
-    if (character) {
-      void voice.warmup(character);
-    }
-    // Intentionally omit voice from deps: warmup is idempotent and we only
-    // want to trigger it once when the sheet first mounts.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+  // Pre-warm disabled for reliability: connect on click instead, so the Talk
+  // button can never get stuck in a "Getting ready…" state if warmup hangs.
   const convoLive =
     voice.status === "requesting-token" ||
     voice.status === "connecting" ||
@@ -860,34 +838,15 @@ function StorySheet(props: {
               ) : null}
               {character ? (
                 <button
-                  className={`primary-button talk-cta ${
-                    convoLive
-                      ? "is-live"
-                      : voice.status === "pre-connected"
-                        ? "is-ready"
-                        : voice.status === "pre-connecting"
-                          ? "is-warming"
-                          : ""
-                  }`}
+                  className={`primary-button talk-cta ${convoLive ? "is-live" : ""}`}
                   type="button"
-                  disabled={voice.status === "pre-connecting"}
                   onClick={() => (convoLive ? voice.stop() : voice.start(character))}
                   aria-label={
-                    convoLive
-                      ? "End voice conversation"
-                      : voice.status === "pre-connected"
-                        ? `Talk to ${character.name.split(" ")[0]} — session ready`
-                        : `Talk to ${character.name.split(" ")[0]}`
+                    convoLive ? "End voice conversation" : `Talk to ${character.name.split(" ")[0]}`
                   }
                 >
                   <Volume2 size={17} />
-                  {convoLive
-                    ? "End conversation"
-                    : voice.status === "pre-connected"
-                      ? `Talk to ${character.name.split(" ")[0]} — Ready`
-                      : voice.status === "pre-connecting"
-                        ? "Getting ready…"
-                        : `Talk to ${character.name.split(" ")[0]}`}
+                  {convoLive ? "End conversation" : `Talk to ${character.name.split(" ")[0]}`}
                 </button>
               ) : null}
               {voice.status !== "idle" ? (
@@ -1125,6 +1084,7 @@ function PlacePin({
           onError={() => setImageFailed(true)}
         />
       )}
+      <span className="pin-name">{displaySpotTitle(spot)}</span>
     </button>
   );
 }
