@@ -225,22 +225,12 @@ async function fetchVoiceToken(
 }
 
 /**
- * Load @elevenlabs/client at runtime WITHOUT a static import, so the web build
- * passes when the package is not installed. The non-literal specifier stops
- * `tsc`/Vite from resolving it at build time; `@vite-ignore` silences the
- * dynamic-import warning. Throws a clear error if the dep is genuinely missing.
+ * Load @elevenlabs/client at runtime. The package is a real dependency of
+ * @tth/web, so a LITERAL dynamic import lets Vite resolve + code-split it
+ * (the old non-literal `@vite-ignore` specifier left it unresolvable at runtime).
  */
 async function loadElevenLabsClient(): Promise<ElevenLabsClientModule> {
-  const specifier = ["@elevenlabs", "client"].join("/");
-  try {
-    return (await import(/* @vite-ignore */ specifier)) as ElevenLabsClientModule;
-  } catch (err) {
-    throw new Error(
-      "@elevenlabs/client is not installed. Run `pnpm --filter @tth/web add @elevenlabs/client` " +
-        "to enable voice conversations.",
-      { cause: err },
-    );
-  }
+  return (await import("@elevenlabs/client")) as unknown as ElevenLabsClientModule;
 }
 
 /** Build the SessionConfig auth fields from whatever the backend returned. */
