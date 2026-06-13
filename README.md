@@ -1,5 +1,5 @@
 <!-- Banner: swap in a wider hero image by placing it at docs/banner.png and changing the src below -->
-![NearPast](apps/web/public/logo.svg)
+![NearPast](docs/banner.png)
 
 # NearPast
 
