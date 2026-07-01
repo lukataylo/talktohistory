@@ -132,6 +132,7 @@ export function App() {
   const [capturedPhotoUrl, setCapturedPhotoUrl] = useState<string | null>(null);
   const [showMemoryTab, setShowMemoryTab] = useState(false);
   const [tourState, setTourState] = useState<{ open: boolean; tourId?: string }>({ open: false });
+  const [storyAutoTalk, setStoryAutoTalk] = useState(false);
   const [mapboxAdapter, setMapboxAdapter] = useState<MapRenderer["adapter"] | null>(null);
   const [planView, setPlanView] = useState<PlanMapView>(PLAN_VIEW_DEFAULT);
   const [, setMapProjectionTick] = useState(0);
@@ -273,22 +274,21 @@ export function App() {
     [memories]
   );
 
-  const selectedDistance = selectedSpot
-    ? haversineMeters(position, { lat: selectedSpot.lat, lng: selectedSpot.lng })
-    : 0;
-  const selectedUnlocked = selectedSpot ? activeIds.has(selectedSpot.id) : false;
-
   function injectFix(fix: Omit<Fix, "timestamp">) {
     engineRef.current?.onFix({ ...fix, timestamp: Date.now() });
   }
 
   function selectSpot(spot: GhostSpot) {
+    // Tapping the already-open pin collapses its action fan.
+    if (selectedId === spot.id && storyMode === "map") {
+      closeFan();
+      return;
+    }
     setSelectedId(spot.id);
     setStoryMode("map");
     setCurrentStory(null);
     setCapturedPhotoUrl(null);
     stopNarration();
-    setFixStatus(activeIds.has(spot.id) ? "Spot selected" : "Spot selected; tap unlock");
   }
 
   function unlockSpotNow(spot: GhostSpot) {
@@ -296,28 +296,6 @@ export function App() {
     setPosition({ lat: spot.lat, lng: spot.lng });
     setActiveIds((ids) => new Set(ids).add(spot.id));
     setFixStatus(`Unlocked ${displaySpotTitle(spot)}`);
-  }
-
-  function walkToSpot(spot: GhostSpot) {
-    const name = getCharacter(spot.id)?.name ?? displaySpotTitle(spot);
-    const start = position;
-    const startTime = performance.now();
-    const duration = 1100;
-    setFixStatus(`Walking to ${name}…`);
-    const step = (now: number) => {
-      const t = Math.min(1, (now - startTime) / duration);
-      const eased = t * (2 - t);
-      const lat = start.lat + (spot.lat - start.lat) * eased;
-      const lng = start.lng + (spot.lng - start.lng) * eased;
-      setPosition({ lat, lng });
-      if (t < 1) {
-        requestAnimationFrame(step);
-      } else {
-        setActiveIds((ids) => new Set(ids).add(spot.id));
-        setFixStatus(`Arrived at ${name}`);
-      }
-    };
-    requestAnimationFrame(step);
   }
 
   function locateUser() {
@@ -341,10 +319,13 @@ export function App() {
     );
   }
 
-  async function beginStory(spot: GhostSpot) {
+  async function beginStory(spot: GhostSpot, autoTalk = false) {
+    // Option A: tapping a person is treated as "you're there" — no walk step,
+    // no distance gate. Unlock on the spot and drop straight into the story.
     if (!activeIds.has(spot.id)) {
       unlockSpotNow(spot);
     }
+    setStoryAutoTalk(autoTalk);
 
     // Show a character-voiced fallback instantly, then upgrade with Gemini.
     const fallback = createCharacterStory(spot);
@@ -540,20 +521,6 @@ export function App() {
         ? Boolean(capturedPhotoUrl)
         : false;
 
-  const selectedWithinRadius = selectedSpot
-    ? selectedDistance <= selectedSpot.unlockRadius
-    : false;
-  const selectedCanOpen = selectedUnlocked || selectedWithinRadius;
-
-  function handlePrimaryAction() {
-    if (!selectedSpot) return;
-    if (selectedCanOpen) {
-      beginStory(selectedSpot);
-    } else {
-      walkToSpot(selectedSpot);
-    }
-  }
-
   // Re-projected every render (incl. the mapbox view tick) so collision offsets
   // track the live map; cheap for a handful of pins.
   const pinPlacement = declutterPoints(
@@ -562,6 +529,19 @@ export function App() {
       point: adapter.project({ lat: spot.lat, lng: spot.lng }),
     }))
   );
+
+  // Anchor point for the radial action fan on the currently selected pin.
+  const fanOpen = Boolean(selectedId) && storyMode === "map";
+  const selectedPoint =
+    selectedId && selectedSpot
+      ? pinPlacement.get(selectedId) ?? adapter.project({ lat: selectedSpot.lat, lng: selectedSpot.lng })
+      : null;
+  const selectedTour = selectedSpot ? getTourByGuide(selectedSpot.id) : undefined;
+
+  function closeFan() {
+    setSelectedId("");
+    stopNarration();
+  }
 
   return (
     <main className="app-shell">
@@ -648,33 +628,21 @@ export function App() {
           </div>
         </header>
 
-        {selectedId ? (
-        <aside className="spot-dock glass-panel">
-          <div className="dock-heading">
-            <span className="dock-icon">
-              <MapPin size={17} />
-            </span>
-            <div>
-              <p className="eyebrow">Selected spot</p>
-              <h2>{selectedSpot ? displaySpotTitle(selectedSpot) : ""}</h2>
-            </div>
-          </div>
-          <p className="spot-mood">{selectedSpot ? getCharacter(selectedSpot.id)?.blurb ?? "" : ""}</p>
-          <div className="unlock-meter">
-            <span style={{ width: `${getUnlockPercent(selectedDistance, selectedSpot)}%` }} />
-          </div>
-          <div className="dock-meta">
-            <span>{Math.round(selectedDistance)}m away</span>
-            <span>{selectedUnlocked ? "Unlocked" : selectedSpot ? getCharacter(selectedSpot.id)?.era ?? "Walk up to unlock" : ""}</span>
-          </div>
-          <div className="dock-actions">
-            <button className="primary-button" type="button" onClick={handlePrimaryAction}>
-              {selectedCanOpen ? <BookOpen size={17} /> : <Footprints size={17} />}
-              {selectedCanOpen ? "Open story" : "Walk here ▸"}
-            </button>
-          </div>
-          <p className="fix-status">{fixStatus}</p>
-        </aside>
+        {fanOpen && selectedSpot && selectedPoint ? (
+          <ActionFan
+            spot={selectedSpot}
+            point={selectedPoint}
+            hasTour={Boolean(selectedTour)}
+            onStory={() => beginStory(selectedSpot)}
+            onTalk={() => beginStory(selectedSpot, true)}
+            onTour={() => {
+              if (!selectedTour) return;
+              stopNarration();
+              setSelectedId("");
+              setTourState({ open: true, tourId: selectedTour.id });
+            }}
+            onClose={closeFan}
+          />
         ) : null}
 
         {memories.length > 0 ? (
@@ -750,6 +718,7 @@ export function App() {
             story={currentStory}
             capturedPhotoUrl={capturedPhotoUrl}
             walkMeters={walkMeters}
+            autoTalk={storyAutoTalk}
             guideTour={getTourByGuide(currentStory.spotId)}
             onStartTour={(tour: Tour) => {
               stopNarration();
@@ -781,6 +750,7 @@ function StorySheet(props: {
   onSave: (kind: "selfie" | "walk") => void;
   story: Story;
   walkMeters: number;
+  autoTalk?: boolean;
   guideTour?: Tour;
   onStartTour: (tour: Tour) => void;
 }) {
@@ -788,6 +758,16 @@ function StorySheet(props: {
   const walkTarget = challenge.type === "walk" ? challenge.targetMeters : 0;
   const character = getCharacter(props.story.spotId);
   const voice = useVoiceConversation({ voiceIdFor: (c) => VOICE_BY_GUIDE[c.id] });
+
+  // The fan's "Talk" action opens the story already committed to a conversation,
+  // so kick the voice session off once per spot instead of waiting for a tap.
+  const autoTalkedSpot = useRef<string | null>(null);
+  useEffect(() => {
+    if (props.autoTalk && character && autoTalkedSpot.current !== character.id) {
+      autoTalkedSpot.current = character.id;
+      voice.start(character);
+    }
+  }, [props.autoTalk, character, voice]);
 
   // Pre-warm disabled for reliability: connect on click instead, so the Talk
   // button can never get stuck in a "Getting ready…" state if warmup hangs.
@@ -1014,13 +994,6 @@ function readMemories(): Memory[] {
   }
 }
 
-function getUnlockPercent(distance: number, spot: GhostSpot | undefined) {
-  if (!spot) return 0;
-  const outer = Math.max(spot.unlockRadius * 5, 180);
-  const progress = 100 - (Math.min(distance, outer) / outer) * 100;
-  return Math.max(8, Math.min(100, progress));
-}
-
 function displaySpotTitle(spot: GhostSpot) {
   return DISPLAY_TITLES[spot.id] ?? spot.title.replace(/^The /, "");
 }
@@ -1040,6 +1013,77 @@ function planViewStyle(view: PlanMapView) {
   return {
     transform: `translate(${view.offsetX}px, ${view.offsetY}px) scale(${view.zoom})`,
   };
+}
+
+// Option A radial action fan: labelled icons bloom out of the tapped pin so the
+// user drops straight into an action — no "walk here" navigate step, no card gap.
+function ActionFan({
+  spot,
+  point,
+  hasTour,
+  onStory,
+  onTalk,
+  onTour,
+  onClose,
+}: {
+  spot: GhostSpot;
+  point: ScreenPoint;
+  hasTour: boolean;
+  onStory: () => void;
+  onTalk: () => void;
+  onTour: () => void;
+  onClose: () => void;
+}) {
+  const character = getCharacter(spot.id);
+  const firstName = character?.name.split(" ")[0] ?? displaySpotTitle(spot);
+
+  const base = [
+    { key: "story", label: "Story", icon: <BookOpen size={20} />, onClick: onStory, primary: true },
+    { key: "talk", label: `Talk`, icon: <Volume2 size={20} />, onClick: onTalk, primary: false },
+  ];
+  if (hasTour) {
+    base.push({ key: "tour", label: "Tour", icon: <Navigation size={20} />, onClick: onTour, primary: false });
+  }
+
+  // Fan the items across an upward arc centred on the pin.
+  const n = base.length;
+  const radius = 96;
+  const spreadDeg = n <= 1 ? 0 : Math.min(150, 58 * (n - 1));
+  const startDeg = -90 - spreadDeg / 2;
+  const items = base.map((action, i) => {
+    const deg = n <= 1 ? -90 : startDeg + (spreadDeg / (n - 1)) * i;
+    const rad = (deg * Math.PI) / 180;
+    return { ...action, x: Math.cos(rad) * radius, y: Math.sin(rad) * radius, delay: i * 40 };
+  });
+
+  return (
+    <>
+      <div className="action-fan-scrim" onClick={onClose} aria-hidden="true" />
+      <div
+        className="action-fan"
+        style={{ left: `${point.x}px`, top: `${point.y}px` }}
+        role="menu"
+        aria-label={`${firstName} actions`}
+      >
+        {items.map((item) => (
+          <button
+            key={item.key}
+            className={`action-fan-item ${item.primary ? "is-primary" : ""}`}
+            type="button"
+            role="menuitem"
+            style={{
+              transform: `translate(-50%, -50%) translate(${item.x}px, ${item.y}px)`,
+              animationDelay: `${item.delay}ms`,
+            }}
+            onClick={item.onClick}
+          >
+            <span className="action-fan-ic">{item.icon}</span>
+            <span className="action-fan-cap">{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
 }
 
 function PlacePin({
