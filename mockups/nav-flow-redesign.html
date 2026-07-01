@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NearPast — Nav-flow redesign mockups</title>
+<style>
+  :root{
+    --ink:#191816;
+    --paper:#f7f7f4;
+    --map:#eceae2;
+    --glass:rgba(255,255,255,.86);
+    --line:rgba(24,24,22,.10);
+    --muted:#6b675f;
+    --accent:#111;
+    --people:#c9743c;
+    --objects:#4b8ba0;
+    --buildings:#7a7d55;
+    --moments:#b0553e;
+    --culture:#8a6bb0;
+    --memories:#4f9d7a;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:#e9e8e2;color:var(--ink);
+    -webkit-font-smoothing:antialiased;padding:40px 20px 80px;
+  }
+  .page-head{max-width:1180px;margin:0 auto 34px;}
+  .page-head h1{font-size:26px;margin:0 0 8px;letter-spacing:-.02em}
+  .page-head p{margin:0;color:var(--muted);max-width:760px;line-height:1.55;font-size:15px}
+  .page-head .tag{display:inline-block;font-size:12px;font-weight:600;color:#8a6d2f;background:#f3e6c8;
+    border:1px solid #e4d3a4;padding:3px 10px;border-radius:999px;margin-bottom:14px}
+  .board{
+    max-width:1180px;margin:0 auto;display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:34px;align-items:start;
+  }
+  .col{display:flex;flex-direction:column;align-items:center;gap:14px}
+  .col-head{text-align:center;max-width:340px}
+  .col-head h2{font-size:16px;margin:0 0 4px;letter-spacing:-.01em}
+  .col-head .kicker{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted)}
+  .col-head p{font-size:13px;color:var(--muted);line-height:1.5;margin:6px 0 0}
+  .col-head.before .kicker{color:#b0553e}
+  .col-head.after .kicker{color:#4f9d7a}
+
+  /* ---- phone frame ---- */
+  .phone{
+    position:relative;width:340px;height:720px;border-radius:44px;
+    background:#0d0d0c;padding:11px;box-shadow:0 30px 70px rgba(20,20,16,.34);
+    flex:0 0 auto;
+  }
+  .screen{
+    position:relative;width:100%;height:100%;border-radius:34px;overflow:hidden;
+    background:var(--map);
+  }
+  .notch{position:absolute;top:0;left:50%;transform:translateX(-50%);width:120px;height:26px;
+    background:#0d0d0c;border-radius:0 0 16px 16px;z-index:60}
+  .statusbar{position:absolute;top:0;left:0;right:0;height:44px;display:flex;align-items:center;
+    justify-content:space-between;padding:14px 24px 0;font-size:13px;font-weight:600;z-index:40;color:var(--ink)}
+
+  /* ---- map ---- */
+  .map{
+    position:absolute;inset:0;
+    background:
+      radial-gradient(circle at 70% 22%,rgba(255,255,255,.9),transparent 26%),
+      linear-gradient(150deg,#f4f3ec,#e5e3d9);
+  }
+  .map svg.roads{position:absolute;inset:0;width:100%;height:100%}
+  .river{position:absolute;left:-8%;right:-8%;bottom:20%;height:74px;
+    background:linear-gradient(rgba(120,164,178,.30),rgba(120,164,178,.16));transform:rotate(-6deg);border-radius:40px;filter:blur(.3px)}
+  .maplabel{position:absolute;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:rgba(60,56,48,.34);font-weight:600}
+
+  /* ---- pins ---- */
+  .pin{
+    position:absolute;transform:translate(-50%,-50%);z-index:20;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;gap:3px;border:0;background:none;padding:0;
+  }
+  .pin .bust{
+    width:46px;height:46px;border-radius:50% 50% 50% 6px;transform:rotate(45deg);
+    background:#fff;border:2px solid #fff;box-shadow:0 6px 14px rgba(20,20,16,.28);
+    display:grid;place-items:center;overflow:hidden;transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .pin .bust > span{transform:rotate(-45deg);font-weight:800;font-size:15px;color:#fff}
+  .pin .lbl{font-size:11px;font-weight:700;background:rgba(255,255,255,.9);border:1px solid var(--line);
+    padding:1px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(20,20,16,.12)}
+  .pin.dim{opacity:.32;filter:grayscale(.3)}
+  .pin.sel .bust{transform:rotate(45deg) scale(1.12);box-shadow:0 10px 22px rgba(20,20,16,.4)}
+  .pin.sel .lbl{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .userdot{position:absolute;transform:translate(-50%,-50%);z-index:15;width:20px;height:20px;border-radius:50%;
+    background:#2b6cff;border:3px solid #fff;box-shadow:0 0 0 6px rgba(43,108,255,.18)}
+
+  /* category dot colors */
+  .c-people{background:var(--people)!important}
+  .c-objects{background:var(--objects)!important}
+  .c-buildings{background:var(--buildings)!important}
+  .c-culture{background:var(--culture)!important}
+  .c-memories{background:var(--memories)!important}
+  .c-moments{background:var(--moments)!important}
+
+  /* ================= BEFORE: floating card ================= */
+  .b-card{
+    position:absolute;left:14px;right:14px;bottom:150px;z-index:50;
+    background:#fff;border-radius:22px;padding:16px 16px 18px;box-shadow:0 18px 40px rgba(20,20,16,.22);
+    border:1px solid var(--line);animation:rise .3s ease;
+  }
+  .b-card .row{display:flex;align-items:center;gap:10px}
+  .b-card .glyph{width:34px;height:34px;border-radius:50%;background:var(--ink);color:#fff;display:grid;place-items:center;flex:0 0 auto}
+  .b-card h3{margin:0;font-size:19px;letter-spacing:-.01em}
+  .b-card .x{margin-left:auto;width:30px;height:30px;border-radius:50%;background:#f0efe9;border:0;font-size:15px;cursor:pointer;color:var(--muted)}
+  .b-card p{margin:12px 0 0;font-size:14px;line-height:1.5;color:#4a463f}
+  .b-meter{height:6px;border-radius:999px;background:#eceae2;margin:14px 0 8px;overflow:hidden}
+  .b-meter span{display:block;height:100%;width:22%;background:linear-gradient(90deg,#3b3a34,#c9a24a)}
+  .b-away{font-size:13px;font-weight:700;color:#5b574f}
+  .b-cta{margin-top:14px;width:100%;height:52px;border-radius:16px;background:var(--ink);color:#fff;border:0;
+    font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer}
+  .gap-flag{position:absolute;left:14px;right:14px;bottom:112px;height:30px;z-index:49;
+    border:2px dashed #d2695a;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;color:#c0503f;background:rgba(210,105,90,.06)}
+  .b-chips{position:absolute;left:0;right:0;bottom:86px;z-index:30;display:flex;gap:16px;padding:0 16px;
+    overflow:hidden;font-size:12px;font-weight:700;color:#8a857c;align-items:flex-end;height:34px}
+  .b-chips b{color:var(--ink)}
+
+  /* ================= bottom nav (shared) ================= */
+  .tabbar{position:absolute;left:14px;right:14px;bottom:16px;z-index:55;height:62px;background:#fff;
+    border-radius:22px;box-shadow:0 12px 30px rgba(20,20,16,.16);border:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-around;padding:0 6px}
+  .tabbar .tab{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:700;color:#9a958c}
+  .tabbar .tab.on{color:var(--ink)}
+  .tabbar .tab svg{width:20px;height:20px}
+
+  /* ================= AFTER A: radial action fan ================= */
+  .fan{position:absolute;inset:0;z-index:45;pointer-events:none}
+  .fan-item{
+    position:absolute;transform:translate(-50%,-50%) scale(.4);opacity:0;pointer-events:auto;
+    display:flex;flex-direction:column;align-items:center;gap:5px;transition:transform .34s cubic-bezier(.2,1.1,.3,1),opacity .24s ease;
+  }
+  .fan.open .fan-item{transform:translate(-50%,-50%) scale(1);opacity:1}
+  .fan-item .ic{width:52px;height:52px;border-radius:50%;background:#fff;border:1px solid var(--line);
+    box-shadow:0 10px 22px rgba(20,20,16,.2);display:grid;place-items:center;color:var(--ink)}
+  .fan-item.primary .ic{background:var(--ink);color:#fff}
+  .fan-item .cap{font-size:11px;font-weight:700;background:var(--ink);color:#fff;padding:2px 9px;border-radius:999px;white-space:nowrap}
+  .fan-scrim{position:absolute;inset:0;z-index:44;background:rgba(20,20,16,.14);opacity:0;pointer-events:none;transition:opacity .25s}
+  .fan-scrim.on{opacity:1;pointer-events:auto}
+  .fan-hint{position:absolute;left:0;right:0;bottom:92px;z-index:46;text-align:center;font-size:12px;color:var(--muted);
+    opacity:0;transition:opacity .3s .1s}
+  .fan.open ~ .fan-hint{opacity:1}
+
+  /* ================= AFTER B: category fan launcher ================= */
+  .cat-scrim{position:absolute;inset:0;z-index:47;background:rgba(20,20,16,.16);opacity:0;pointer-events:none;transition:opacity .25s}
+  .cat-scrim.on{opacity:1;pointer-events:auto}
+  .cat-fab{position:absolute;right:18px;bottom:96px;z-index:50;width:58px;height:58px;border-radius:50%;
+    background:var(--ink);color:#fff;border:0;display:grid;place-items:center;cursor:pointer;
+    box-shadow:0 14px 30px rgba(20,20,16,.3);transition:transform .3s}
+  .cat-fab.open{transform:rotate(135deg)}
+  .cat-item{position:absolute;right:24px;bottom:104px;z-index:49;transform:translate(0,0) scale(.3);opacity:0;
+    display:flex;align-items:center;gap:9px;pointer-events:none;transition:transform .36s cubic-bezier(.2,1.1,.3,1),opacity .22s}
+  .catwrap.open .cat-item{opacity:1;pointer-events:auto;transform:var(--pos) scale(1)}
+  .cat-item .ic{width:46px;height:46px;border-radius:50%;background:#fff;border:1px solid var(--line);
+    display:grid;place-items:center;box-shadow:0 8px 18px rgba(20,20,16,.2)}
+  .cat-item .cap{font-size:12px;font-weight:700;background:#fff;padding:4px 11px;border-radius:999px;
+    box-shadow:0 4px 12px rgba(20,20,16,.14);border:1px solid var(--line)}
+  .cat-item.act .cap{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  .legend{max-width:1180px;margin:44px auto 0;background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px 26px}
+  .legend h3{margin:0 0 12px;font-size:15px}
+  .legend ul{margin:0;padding-left:18px;color:#4a463f;font-size:14px;line-height:1.7}
+  .legend b{color:var(--ink)}
+  .hintbar{font-size:12px;color:var(--muted);text-align:center;margin-top:2px}
+  .hintbar b{color:var(--ink)}
+</style>
+</head>
+<body>
+  <div class="page-head">
+    <span class="tag">PROTOTYPE · tap the pins & buttons — nothing here is wired to the real app</span>
+    <h1>NearPast — removing the “navigate-to” step</h1>
+    <p>Three framed screens. The first shows today’s flow and the two problems you flagged. The next two are alternative redesigns where the <b>first tap fans labelled icons straight out of the pin</b> — no distance gate, no floating card, no gap.</p>
+  </div>
+
+  <div class="board">
+
+    <!-- ============ BEFORE ============ -->
+    <div class="col">
+      <div class="col-head before">
+        <div class="kicker">Today · the problem</div>
+        <h2>Tap → “Try it” navigate step</h2>
+        <p>A card floats up with a <b>2969 m away</b> gate and a <b>Try it</b> button that walks you there first. It also leaves a dead gap above the category strip.</p>
+      </div>
+      <div class="phone">
+        <div class="screen" id="scr-before">
+          <div class="notch"></div>
+          <div class="map">
+            <svg class="roads" viewBox="0 0 340 720" preserveAspectRatio="none">
+              <path d="M-20 210 C 90 170 180 250 360 210" stroke="rgba(255,255,255,.8)" stroke-width="16" fill="none"/>
+              <path d="M40 -20 C 80 180 60 380 130 740" stroke="rgba(255,255,255,.7)" stroke-width="12" fill="none"/>
+              <path d="M-20 470 C 120 430 220 500 360 450" stroke="rgba(120,164,178,.34)" stroke-width="34" fill="none"/>
+            </svg>
+            <div class="maplabel" style="top:120px;left:40px">Clerkenwell</div>
+            <div class="maplabel" style="top:250px;right:26px">City of London</div>
+            <div class="maplabel" style="top:452px;left:120px">River Thames</div>
+          </div>
+          <div class="statusbar"><span>22:37</span><span>◉ 30</span></div>
+
+          <button class="pin" style="top:150px;left:70px"><span class="bust c-people"><span>CD</span></span><span class="lbl">Dickens</span></button>
+          <button class="pin sel" style="top:280px;left:150px"><span class="bust c-people"><span>KM</span></span><span class="lbl">Karl Marx</span></button>
+          <div class="userdot" style="top:360px;left:210px"></div>
+
+          <div class="b-card">
+            <div class="row">
+              <span class="glyph"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.4 7-11a7 7 0 1 0-14 0c0 4.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></span>
+              <h3>Karl Marx</h3>
+              <button class="x">✕</button>
+            </div>
+            <p>The exiled philosopher who dissected capitalism while dodging the rent in two cramped Soho…</p>
+            <div class="b-meter"><span></span></div>
+            <div class="b-away">2969 m away</div>
+            <button class="b-cta"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M13 5l2 4 4 1-3 3 1 5-4-2-4 2 1-5-3-3 4-1z"/></svg> Try it</button>
+          </div>
+          <div class="gap-flag">↕ dead gap · disconnected step</div>
+          <div class="b-chips"><b>All</b><span>People</span><span>Objects</span><span>Buildings</span><span>Moments</span></div>
+
+          <div class="tabbar">
+            <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>Map</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>Search</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 15 3-3 4 4 3-3"/></svg>Memories</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Profile</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ AFTER A: radial action fan ============ -->
+    <div class="col">
+      <div class="col-head after">
+        <div class="kicker">Option A · action fan</div>
+        <h2>Tap a person → actions fan out</h2>
+        <p>Icons bloom around the pin: <b>Story · Talk · Tour · Save</b>. Pick one and go straight in — no “navigate”, no distance, no card gap.</p>
+      </div>
+      <div class="phone">
+        <div class="screen" id="scr-a">
+          <div class="notch"></div>
+          <div class="map">
+            <svg class="roads" viewBox="0 0 340 720" preserveAspectRatio="none">
+              <path d="M-20 210 C 90 170 180 250 360 210" stroke="rgba(255,255,255,.8)" stroke-width="16" fill="none"/>
+              <path d="M40 -20 C 80 180 60 380 130 740" stroke="rgba(255,255,255,.7)" stroke-width="12" fill="none"/>
+              <path d="M-20 470 C 120 430 220 500 360 450" stroke="rgba(120,164,178,.34)" stroke-width="34" fill="none"/>
+            </svg>
+            <div class="maplabel" style="top:120px;left:40px">Clerkenwell</div>
+            <div class="maplabel" style="top:452px;left:120px">River Thames</div>
+          </div>
+          <div class="statusbar"><span>22:37</span><span>◉ 30</span></div>
+
+          <div class="fan-scrim" id="a-scrim"></div>
+
+          <button class="pin" id="a-dickens" style="top:150px;left:80px"><span class="bust c-people"><span>CD</span></span><span class="lbl">Dickens</span></button>
+          <button class="pin" id="a-marx" style="top:320px;left:160px"><span class="bust c-people"><span>KM</span></span><span class="lbl">Karl Marx</span></button>
+          <div class="userdot" style="top:400px;left:220px"></div>
+
+          <!-- fan anchored on Karl Marx -->
+          <div class="fan" id="a-fan" style="left:160px;top:320px;width:0;height:0">
+            <button class="fan-item primary" data-x="0" data-y="-96">
+              <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h11a3 3 0 0 1 3 3v11a3 3 0 0 0-3-3H4Z"/><path d="M20 5h-2a3 3 0 0 0-3 3v11"/></svg></span>
+              <span class="cap">Story</span>
+            </button>
+            <button class="fan-item" data-x="-92" data-y="-28">
+              <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V6a3 3 0 0 1 3-3h11a4 4 0 0 1 4 4Z"/></svg></span>
+              <span class="cap">Talk</span>
+            </button>
+            <button class="fan-item" data-x="92" data-y="-28">
+              <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3v6a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4v4"/><circle cx="6" cy="3" r="0"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="3"/></svg></span>
+              <span class="cap">Tour</span>
+            </button>
+            <button class="fan-item" data-x="-60" data-y="66">
+              <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="12" cy="12" r="3.4"/><path d="M8 5l1.5-2h5L16 5"/></svg></span>
+              <span class="cap">Photo</span>
+            </button>
+            <button class="fan-item" data-x="60" data-y="66">
+              <span class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.4 7-11a7 7 0 1 0-14 0c0 4.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg></span>
+              <span class="cap">Save spot</span>
+            </button>
+          </div>
+          <div class="fan-hint">Tap an action — you’re already “there”.</div>
+
+          <div class="tabbar">
+            <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>Map</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>Search</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 15 3-3 4 4 3-3"/></svg>Memories</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Profile</div>
+          </div>
+        </div>
+      </div>
+      <div class="hintbar">Tap <b>Karl Marx</b> to open the fan · tap the map to close</div>
+    </div>
+
+    <!-- ============ AFTER B: category fan launcher ============ -->
+    <div class="col">
+      <div class="col-head after">
+        <div class="kicker">Option B · category fan</div>
+        <h2>First step = fan of categories</h2>
+        <p>The chip strip becomes a launcher. Tap it and <b>People · Objects · Buildings · Moments · Culture · Memories</b> fan up as labelled icons to filter the map.</p>
+      </div>
+      <div class="phone">
+        <div class="screen" id="scr-b">
+          <div class="notch"></div>
+          <div class="map">
+            <svg class="roads" viewBox="0 0 340 720" preserveAspectRatio="none">
+              <path d="M-20 210 C 90 170 180 250 360 210" stroke="rgba(255,255,255,.8)" stroke-width="16" fill="none"/>
+              <path d="M40 -20 C 80 180 60 380 130 740" stroke="rgba(255,255,255,.7)" stroke-width="12" fill="none"/>
+              <path d="M-20 470 C 120 430 220 500 360 450" stroke="rgba(120,164,178,.34)" stroke-width="34" fill="none"/>
+            </svg>
+            <div class="maplabel" style="top:120px;left:40px">Clerkenwell</div>
+            <div class="maplabel" style="top:452px;left:120px">River Thames</div>
+          </div>
+          <div class="statusbar"><span>22:37</span><span>◉ 30</span></div>
+
+          <button class="pin" id="b-dickens" style="top:150px;left:80px"><span class="bust c-people"><span>CD</span></span><span class="lbl">Dickens</span></button>
+          <button class="pin" id="b-wren" style="top:240px;left:230px"><span class="bust c-buildings"><span>CW</span></span><span class="lbl">Wren</span></button>
+          <button class="pin" id="b-marx" style="top:330px;left:150px"><span class="bust c-people"><span>KM</span></span><span class="lbl">Karl Marx</span></button>
+          <button class="pin" id="b-hendrix" style="top:410px;left:250px"><span class="bust c-culture"><span>JH</span></span><span class="lbl">Hendrix</span></button>
+          <div class="userdot" style="top:470px;left:190px"></div>
+
+          <div class="cat-scrim" id="b-scrim"></div>
+          <div class="catwrap" id="b-catwrap">
+            <button class="cat-item" data-cat="people"     style="--pos:translate(-14px,-150px)">
+              <span class="cap">People</span><span class="ic" style="color:var(--people)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg></span>
+            </button>
+            <button class="cat-item" data-cat="objects"    style="--pos:translate(-58px,-138px)">
+              <span class="cap">Objects</span><span class="ic" style="color:var(--objects)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3 3 8v8l9 5 9-5V8Z"/><path d="M3 8l9 5 9-5M12 13v8"/></svg></span>
+            </button>
+            <button class="cat-item" data-cat="buildings"  style="--pos:translate(-96px,-113px)">
+              <span class="cap">Buildings</span><span class="ic" style="color:var(--buildings)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V8l6-4 6 4v13"/><path d="M10 21v-5h4v5"/></svg></span>
+            </button>
+            <button class="cat-item" data-cat="moments"    style="--pos:translate(-122px,-77px)">
+              <span class="cap">Moments</span><span class="ic" style="color:var(--moments)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg></span>
+            </button>
+            <button class="cat-item" data-cat="culture"    style="--pos:translate(-136px,-36px)">
+              <span class="cap">Culture</span><span class="ic" style="color:var(--culture)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
+            </button>
+            <button class="cat-item" data-cat="memories"   style="--pos:translate(-138px,6px)">
+              <span class="cap">Memories</span><span class="ic" style="color:var(--memories)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="15" rx="3"/><circle cx="12" cy="12" r="3.4"/></svg></span>
+            </button>
+            <button class="cat-fab" id="b-fab" aria-label="Filter categories">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+
+          <div class="tabbar">
+            <div class="tab on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>Map</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4-4"/></svg>Search</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 15 3-3 4 4 3-3"/></svg>Memories</div>
+            <div class="tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M5 20a7 7 0 0 1 14 0"/></svg>Profile</div>
+          </div>
+        </div>
+      </div>
+      <div class="hintbar">Tap the <b>+</b> launcher to fan the categories · tap one to filter</div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <h3>What changed vs. today</h3>
+    <ul>
+      <li><b>Navigate-to step removed.</b> No “2969 m away” gate and no <b>Try it</b> walk step. Tapping a person is treated as being there — you go straight to Story / Talk / Tour.</li>
+      <li><b>No floating-card gap.</b> The disconnected card that hovered above the category strip is gone; actions attach to the pin itself.</li>
+      <li><b>Option A — action fan:</b> the fan carries the <i>per-person options</i>. Best if “each option” meant what you can do with a character.</li>
+      <li><b>Option B — category fan:</b> the fan replaces the chip strip with <i>labelled category icons</i>. Best if “each option” meant the People / Objects / Buildings filters.</li>
+      <li>These can also combine: category fan to filter the map, action fan on each pin. Tell me which direction and I’ll build it into the real React app.</li>
+    </ul>
+  </div>
+
+<script>
+  // ---- Option A: radial action fan ----
+  (function(){
+    var fan = document.getElementById('a-fan');
+    var scrim = document.getElementById('a-scrim');
+    var marx = document.getElementById('a-marx');
+    var dickens = document.getElementById('a-dickens');
+    var screen = document.getElementById('scr-a');
+    // position fan items from their data-x / data-y
+    fan.querySelectorAll('.fan-item').forEach(function(it){
+      it.style.left = (parseFloat(it.dataset.x)) + 'px';
+      it.style.top  = (parseFloat(it.dataset.y)) + 'px';
+    });
+    function open(){ fan.classList.add('open'); scrim.classList.add('on'); marx.classList.add('sel'); dickens.classList.add('dim'); }
+    function close(){ fan.classList.remove('open'); scrim.classList.remove('on'); marx.classList.remove('sel'); dickens.classList.remove('dim'); }
+    marx.addEventListener('click', function(e){ e.stopPropagation(); fan.classList.contains('open') ? close() : open(); });
+    scrim.addEventListener('click', close);
+    screen.addEventListener('click', function(e){ if(!e.target.closest('.pin') && !e.target.closest('.fan-item')) close(); });
+    fan.querySelectorAll('.fan-item').forEach(function(it){
+      it.addEventListener('click', function(e){ e.stopPropagation(); it.animate([{transform:it.style.transform+' scale(1.15)'},{transform:it.style.transform+' scale(1)'}],{duration:180}); });
+    });
+  })();
+
+  // ---- Option B: category fan launcher ----
+  (function(){
+    var wrap = document.getElementById('b-catwrap');
+    var fab = document.getElementById('b-fab');
+    var scrim = document.getElementById('b-scrim');
+    var pins = { people:['b-dickens','b-marx'], buildings:['b-wren'], culture:['b-hendrix'] };
+    var all = ['b-dickens','b-marx','b-wren','b-hendrix'];
+    function setOpen(o){ fab.classList.toggle('open',o); wrap.classList.toggle('open',o); scrim.classList.toggle('on',o); }
+    fab.addEventListener('click', function(e){ e.stopPropagation(); setOpen(!wrap.classList.contains('open')); });
+    scrim.addEventListener('click', function(){ setOpen(false); });
+    wrap.querySelectorAll('.cat-item').forEach(function(it){
+      it.addEventListener('click', function(e){
+        e.stopPropagation();
+        wrap.querySelectorAll('.cat-item').forEach(function(x){x.classList.remove('act')});
+        it.classList.add('act');
+        var cat = it.dataset.cat;
+        var keep = pins[cat] || [];
+        all.forEach(function(id){
+          var el = document.getElementById(id);
+          if(!el) return;
+          el.classList.toggle('dim', keep.length>0 && keep.indexOf(id)===-1);
+        });
+      });
+    });
+    document.getElementById('scr-b').addEventListener('click', function(e){
+      if(!e.target.closest('.catwrap')){ setOpen(false); }
+    });
+  })();
+</script>
+</body>
+</html>
